@@ -81,7 +81,7 @@ def do_beam_search(beam_size, cfg, models, das_test, da_embedder, text_embedder,
         parent = os.path.abspath(os.path.join(save_path, os.pardir))
         if not os.path.exists(parent):
             os.makedirs(parent)
-        with open(save_path, "w+") as out_file:
+        with open(save_path, "w+", encoding='utf-8') as out_file:
             for pa in post_abstr:
                 # out_file.write(" ".join(pa) + '\n')
                 if cfg.get("re-lexicalise", True):
@@ -111,7 +111,7 @@ def do_nucleus_sampling(models, das_test, cfg, absts):
     parent = os.path.abspath(os.path.join(save_path, os.pardir))
     if not os.path.exists(parent):
         os.makedirs(parent)
-    with open(save_path, "w+") as out_file:
+    with open(save_path, "w+", encoding='utf-8') as out_file:
         for pa in post_abstr:
             # out_file.write(" ".join(pa) + '\n')
             if cfg.get("re-lexicalise", True):
@@ -133,9 +133,9 @@ if __name__ == '__main__':
         cfg_path = filepaths[max(mod_times)[1]]
 
     print("Using config from: {}".format(cfg_path))
-    cfg = yaml.safe_load(open(cfg_path, "r"))
+    cfg = yaml.safe_load(open(cfg_path, "r", encoding='utf-8'))
     if "trainable_reranker_config" in cfg:
-        cfg["train_reranker"] = yaml.safe_load(open(cfg["trainable_reranker_config"], "r"))
+        cfg["train_reranker"] = yaml.safe_load(open(cfg["trainable_reranker_config"], "r", encoding='utf-8'))
     print("Config:")
     [print("\t{}: {}".format(k, v)) for k, v in cfg.items()]
     print("*******")

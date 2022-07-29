@@ -27,7 +27,7 @@ CONFIGS_MODEL_DIR = 'new_configs/model_configs'
 TRAIN_BEAM_SAVE_FORMAT = 'output_files/saved_beams/train_vanilla_{}_{}.pickle'
 TEST_BEAM_SAVE_FORMAT = 'output_files/saved_beams/vanilla_{}.pickle'
 VALIDATION_NOT_TEST= True
-DATASET_WEBNLG=True
+DATASET_WEBNLG=False
 
 
 class fakeDAI:
@@ -100,7 +100,7 @@ def get_true_sents():
         true_file = "tgen/e2e-challenge/input/test-text.txt"
 
     true_sentences = []
-    with open(true_file, "r") as true:
+    with open(true_file, "r", encoding='utf-8') as true:
         current_set = []
         for line in true:
             if len(line) > 1:
@@ -117,7 +117,7 @@ def count_lines(filepath):
 
 def get_texts_training():
     true_file_path = "tgen/e2e-challenge/input/train-text.txt"
-    with open(true_file_path, "r") as fp:
+    with open(true_file_path, "r", encoding='utf-8') as fp:
         return [x.strip("\n").split(" ") for x in fp.readlines()]
 
 

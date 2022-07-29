@@ -21,7 +21,7 @@ from tensorflow.python.keras.layers import LSTM, TimeDistributed, Dense, Concate
     Dropout
 from tqdm import tqdm
 
-from attention_keras.layers.attention import AttentionLayer
+from attention_keras.src.layers.attention import AttentionLayer
 from e2e_metrics.metrics.pymteval import BLEUScore
 from e2e_metrics.pycocoevalcap.bleu.bleu_scorer import BleuScorer
 from utils import START_TOK, get_hamming_distance, PAD_TOK, load_model_from_gpu, TRAIN_BEAM_SAVE_FORMAT
