@@ -10,8 +10,13 @@ old_files/*
 config*.yaml
 configs/*
 tmp.py
-new_configs/*
+
+# new_configs/*       -commented due to see the change of config. will be uncommented later
 
 e2e_metrics/*
 tgen/*
 attention_keras/*
+PreSumm/*
+
+# Will decide later, ignore for now
+fact_scorer/*       
