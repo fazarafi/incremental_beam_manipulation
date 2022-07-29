@@ -11,3 +11,7 @@ config*.yaml
 configs/*
 tmp.py
 new_configs/*
+
+e2e_metrics/*
+tgen/*
+attention_keras/*
