@@ -1,3 +1,4 @@
+import time
 import argparse
 import os
 import pickle
@@ -14,7 +15,7 @@ from tqdm import tqdm
 
 from utils import get_training_variables, START_TOK, PAD_TOK, END_TOK, get_multi_reference_training_variables, \
     get_final_beam, get_test_das, get_true_sents, TRAIN_BEAM_SAVE_FORMAT, TEST_BEAM_SAVE_FORMAT, RESULTS_DIR, \
-    CONFIGS_MODEL_DIR, get_section_cutoffs, get_section_value, get_regression_vals
+    CONFIGS_MODEL_DIR, get_section_cutoffs, get_section_value, get_regression_vals, get_timestamp_file
 from base_models import TGEN_Model, TrainableReranker, PairwiseReranker
 from e2e_metrics.metrics.pymteval import BLEUScore
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
@@ -28,6 +29,8 @@ def get_scores_ordered_beam(cfg, da_embedder, text_embedder, beam_save_path=None
     train_texts, train_das = get_multi_reference_training_variables()
     if beam_save_path is None:
         beam_save_path = TRAIN_BEAM_SAVE_FORMAT.format(beam_size, cfg["tgen_seq2seq_config"].split('.')[0].split('/')[-1])
+
+    print("[DEBUG FT] path? ", beam_save_path)
     if not os.path.exists(beam_save_path):
         models = TGEN_Model(da_embedder, text_embedder, cfg["tgen_seq2seq_config"])
         models.load_models()
@@ -37,6 +40,7 @@ def get_scores_ordered_beam(cfg, da_embedder, text_embedder, beam_save_path=None
                                       save_final_beam_path=beam_save_path)
     bleu = BLEUScore()
     final_beam = pickle.load(open(beam_save_path, "rb"))
+    # print(final_beam)
     text_seqs = []
     da_seqs = []
     scores = []
@@ -56,7 +60,15 @@ def get_scores_ordered_beam(cfg, da_embedder, text_embedder, beam_save_path=None
         print("Only using top value")
     if merge_middles and only_top:
             print("Ignoring only top since have merge_middle_sections set")
+            
+    
+    print("LEN")    
+    print(len(final_beam), " ", len(train_texts), " ", len( train_das))
+
     training_vals = list(zip(final_beam, train_texts, train_das))
+
+    # print(len(training_vals))
+    time.sleep(5)
     training_vals = training_vals[:cfg.get("use_size", len(training_vals))]
     for beam, real_texts, da in tqdm(training_vals):
         beam_scores = []
@@ -75,6 +87,9 @@ def get_scores_ordered_beam(cfg, da_embedder, text_embedder, beam_save_path=None
             # log_probs.append(i)
 
         for i, (score, hyp, path) in enumerate(sorted(beam_scores, reverse=True)):
+            # print("here")
+            # print(hyp)
+            # print(da)
             text_seqs.append([START_TOK] + hyp + [END_TOK])
             da_seqs.append(da)
             if cfg["output_type"] in ['bleu', 'pair']:
@@ -93,8 +108,32 @@ def get_scores_ordered_beam(cfg, da_embedder, text_embedder, beam_save_path=None
 
             log_probs.append([path[0]])
 
+    print("BEFORE")
+    print("text_seqs")
+    print(len(text_seqs))
+    print(text_seqs[0])
+    print(type(text_seqs[0]))
+    
+    print("da_seqs")
+    print(len(da_seqs))
+    # print(str([s.encode('utf8') for s in da_seqs[0]])) 
+    
+    print("scores")
+    print(len(scores))
+    print(scores[0])
+    
+    print("-------------------")
     text_seqs = np.array(text_embedder.get_embeddings(text_seqs, pad_from_end=False))
     da_seqs = np.array(da_embedder.get_embeddings(da_seqs))
+    print("AFTER")
+    print("text_seqs")
+    print(len(text_seqs))
+    print(text_seqs[0])
+    print(type(text_seqs[0]))
+    
+    print("da_seqs")
+    print(len(da_seqs))
+    # print(str([s.encode('utf8') for s in da_seqs[0]])) 
 
     if cfg["output_type"] in ['regression_ranker', 'bleu', 'regression_reranker_relative', 'pair',
                               'regression_sections', 'binary_classif']:
@@ -103,6 +142,11 @@ def get_scores_ordered_beam(cfg, da_embedder, text_embedder, beam_save_path=None
     elif cfg["output_type"] == 'order_discrete':
         scores = np.array(scores).reshape((-1, beam_size))
 
+    print("scores")
+    print(len(scores))
+    print(scores[0])
+    print(type(scores[0]))
+    
     log_probs = np.array(log_probs)
     return text_seqs, da_seqs, scores, log_probs
 

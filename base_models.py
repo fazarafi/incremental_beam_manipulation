@@ -356,6 +356,10 @@ class TrainableReranker(object):
         len_da = self.da_embedder.length
         len_vda = self.da_embedder.vocab_length
 
+        print("TRAINABLE lens")
+        print("len_vtext: ", len_vtext, ", len_vda: ", len_vda)
+        print("len_text: ", len_text, ", len_da: ", len_da)
+        
         lstm_type = CuDNNLSTM if is_gpu_available() else LSTM
 
         text_inputs = Input(shape=(len_text,), name='text_inputs')
@@ -456,6 +460,8 @@ class TrainableReranker(object):
 
         log_probs = np.array(norm_log_probs).reshape(-1, self.beam_size)
         print("Number of each input = ", text_seqs.shape, das_seqs.shape, log_probs.shape, bleu_scores.shape)
+        print(text_seqs[0])
+        print(das_seqs[0])
 
         valid_text_seqs = text_seqs[-valid_size:]
         valid_das = das_seqs[-valid_size:]
@@ -488,9 +494,12 @@ class TrainableReranker(object):
                     print("All Scores:", " ".join([str(x) for x in bleu_batch]))
                     print("*******************************")
 
+                # print("PER BATCH")
+                # print("Number of each input = ", text_batch.shape, da_batch.shape, lp_batch.shape, bleu_batch.shape)
                 self.model.train_on_batch([text_batch, da_batch, lp_batch], bleu_batch)
                 losses += self.model.evaluate([text_batch, da_batch, lp_batch], bleu_batch, batch_size=self.batch_size,
                                               verbose=0)
+                # time.sleep(2)
             train_loss = losses / das_seqs.shape[0] * self.batch_size
             time_spent = time() - start
             valid_loss = self.get_valid_loss(valid_das, valid_text_seqs, valid_log_probs, valid_bleu_scores)
@@ -839,6 +848,7 @@ class TGEN_Model(object):
         new_paths = []
         tok_probs = []
         for (lp, toks, ds), dec_out, ds0, ds1 in zip(paths, dec_outs, dec_states[0], dec_states[1]):
+            
             if toks[-1] in self.text_embedder.end_embs:
                 new_paths.append((lp, toks, ds))
                 continue
@@ -847,6 +857,8 @@ class TGEN_Model(object):
                     dec_out[0][self.text_embedder.tok_to_embed['<E>']] *= pow(len(toks)/(len(toks)+1), length_norm_alpha)
                 expansions = np.argsort(dec_out, axis=-1)[0][-beam_size:]
             else:
+                # TODO FT remove: DONT LOOK HERE, we are using beam search
+
                 sorted_probs = np.sort(dec_out, axis=-1)[0][::-1]
                 nucleus_size = 0
                 nucleus_prob = 0
@@ -864,13 +876,20 @@ class TGEN_Model(object):
                         break
                 sample = np.argsort(dec_out, axis=-1)[0][::-1][sample_index]
                 expansions = [sample]
+                # TODO FT remove: DONT LOOK HERE, we are using beam search
+
 
             ds0 = ds0.reshape((1, -1))
             ds1 = ds1.reshape((1, -1))
             tok_prob = dec_out[0][expansions]
+
             for new_tok, tp in zip(expansions, tok_prob):
+                # print("ZIP POPULATE TOKENS")
+                # print(new_tok)
+                # print(tp)
                 tok_probs.append(tp)
                 new_paths.append((lp + log(tp), toks + [new_tok], [ds0, ds1]))
+
         return new_paths, tok_probs
 
     def get_prob_sequence(self, enc_outs, sequence, encoder_end_states):

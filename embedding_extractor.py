@@ -1,13 +1,70 @@
 from utils import PAD_TOK, START_TOK, END_TOK
+from utils import SUMM_PAD_TOK, SUMM_START_TOK, SUMM_END_TOK
 import sys
 import os
+import time
 
 sys.path.append(os.path.join(os.getcwd(), 'tgen'))
 from tgen.data import DAI
 
+class SummaryTokEmbeddingExtractor(object):
+    def __init__(self, tokenised_texts, max_length=None):
+
+        tokenised_texts = tokenised_texts.item()
+        self.vocab = set()
+        for tokens in tokenised_texts:
+            self.vocab.update(tokens)
+        self.vocab.add(PAD_TOK)
+        self.tok_to_embed = {tok: i for i, tok in enumerate(sorted(list(self.vocab)))}
+        self.embed_to_tok = {i: tok for i, tok in enumerate(sorted(list(self.vocab)))}
+        self.vocab_length = len(self.vocab)
+        self.length = max([len(x) for x in tokenised_texts])
+        if max_length is not None:
+            self.length = min(self.length, max_length)
+        self.start_emb = [self.tok_to_embed[START_TOK]]
+        self.end_embs = [self.tok_to_embed[END_TOK], self.tok_to_embed[PAD_TOK]]
+        self.empty_embedding = [self.tok_to_embed[PAD_TOK] for _ in range(self.length)]
+        self.sentence
+
+    def get_embeddings(self, tokenised_texts, pad_from_end=True):
+        embs = []
+        for toks in tokenised_texts:
+            emb = [self.tok_to_embed.get(x, self.tok_to_embed[PAD_TOK]) for x in toks]
+            pad = [self.tok_to_embed[PAD_TOK] for _ in range(self.length - len(toks))]
+            if pad_from_end:
+                embs.append(emb + pad)
+            else:
+                embs.append(pad + emb)
+        return [e[:self.length] for e in embs]
+
+    def add_pad_to_embed(self, emb, to_start=False):
+        pad = [self.tok_to_embed[PAD_TOK] for _ in range(self.length - len(emb))]
+        if to_start:
+            return pad + list(emb)
+        else:
+            return list(emb) + pad
+
+    def reverse_embedding(self, embedding):
+        return [self.embed_to_tok[e] for e in embedding]
+
+    def remove_pad_from_embed(self, emb):
+        return [x for x in emb if x != self.tok_to_embed[PAD_TOK]]
+
+    def pad_to_length(self, text_emb, to_start=True):
+        pads = [self.tok_to_embed[PAD_TOK]] * (self.length - len(text_emb))
+        if to_start:
+            return pads + text_emb
+        else:
+            return text_emb + pads
+
 
 class TokEmbeddingSeq2SeqExtractor(object):
     def __init__(self, tokenised_texts, max_length=None):
+        # print(" TOKEN EMBEDDING seq2seq")
+        # print(len(tokenised_texts))
+        # print(len(tokenised_texts[0]))
+        # print(len(tokenised_texts[1]))
+
         self.vocab = set()
         for tokens in tokenised_texts:
             self.vocab.update(tokens)
@@ -23,15 +80,54 @@ class TokEmbeddingSeq2SeqExtractor(object):
         self.empty_embedding = [self.tok_to_embed[PAD_TOK] for _ in range(self.length)]
 
     def get_embeddings(self, tokenised_texts, pad_from_end=True):
+        # print("get_embeddings PROCESS")
+        # print(tokenised_texts)
+        # print(len(tokenised_texts))
         embs = []
         for toks in tokenised_texts:
+            # print("yuk")
+            # print(toks)
             emb = [self.tok_to_embed.get(x, self.tok_to_embed[PAD_TOK]) for x in toks]
             pad = [self.tok_to_embed[PAD_TOK] for _ in range(self.length - len(toks))]
             if pad_from_end:
                 embs.append(emb + pad)
             else:
+                # # FT Token embedding here
+                # print("pad")
+                # print(pad)
+                # print(pad.shape)
+                # print("emb")
+                # print(emb)
+                # print(emb.shape)
+                # print("pad + emb")
+                # print(pad + emb)
                 embs.append(pad + emb)
-        return [e[:self.length] for e in embs]
+                # time.sleep(5)
+            
+        result = [e[:self.length] for e in embs]
+        # print(result)
+        # print(len(result))
+        return result
+
+    # def get_embeddings_summary(self, tokenised_texts):
+    #     length = max([len(x) for x in tokenised_texts])
+    #     # print(tokenised_texts)
+    #     # print(len(tokenised_texts))
+    #     for toks in tokenised_texts:
+    #         tok_in_np = toks.numpy()
+            
+    #         emb = tok_in_numpy
+    #         pad = [SUMM_PAD_TOK for _ in range(length - len(tok_in_np))]
+            
+    #         embs.append(pad + emb)
+            
+    #         print(emb)
+    #         print(pad)
+            
+    #     result = [e[:length] for e in embs]
+    #     # print(result)
+    #     # print(len(result))
+    #     return result
 
     def add_pad_to_embed(self, emb, to_start=False):
         pad = [self.tok_to_embed[PAD_TOK] for _ in range(self.length - len(emb))]

@@ -27,6 +27,7 @@ from utils import get_texts_training, RERANK, get_training_das_texts, safe_get_w
 
 
 def score_beams_pairwise(beam, pair_wise_model, da_emb, cfg):
+    print("[DEBUG FT] beam_search 30")
     text_embedder = pair_wise_model.text_embedder
     da_emb = np.array(da_emb)
     inf_beam_size = len(beam)
@@ -81,6 +82,8 @@ def score_beams_pairwise(beam, pair_wise_model, da_emb, cfg):
 
 
 def score_beams(rescorer, beam, da_emb, i):
+    print("[DEBUG FT] beam_search 85")
+    
     path_scores = []
     logprobs = [x[0] for x in beam]
     for path in beam:
@@ -97,6 +100,8 @@ recorded_sections = []
 # TODO pass in the value of the flags and then can controll these at a level where can distinguish between
 # greedy and non greedy
 def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=None, ignore_flags=False):
+    print("[DEBUG FT] beam_search 103")
+    
     # this only works if rescorer is the one used in cfg
     global recorded_sections
     if "train_reranker" in cfg:
@@ -139,6 +144,7 @@ def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=Non
 
 
 def order_beam_after_greedy_complete(rescorer, beam, da_emb, i, enc_outs, seq2seq, max_pred_len, cfg, length_norm_alpha=None):
+    print("[DEBUG FT] beam_search 147")
     finished_beam = beam.copy()
     toks_pred_so_far = max([len(x[1]) for x in beam])
     for step in range(max_pred_len - toks_pred_so_far):
@@ -148,8 +154,9 @@ def order_beam_after_greedy_complete(rescorer, beam, da_emb, i, enc_outs, seq2se
     result = order_beam_acording_to_rescorer(rescorer, finished_beam, da_emb, i, cfg, beam)
     return result
 
-
 def run_nucleus_sampling(beam_search_model: TGEN_Model, das, cfg, max_pred_len=60):
+    print("[DEBUG FT] beam_search 169")
+    end_tokens = seq2seq.text_embedder.end_embs
     da_embedder = beam_search_model.da_embedder
     text_embedder = beam_search_model.text_embedder
 
@@ -163,7 +170,7 @@ def run_nucleus_sampling(beam_search_model: TGEN_Model, das, cfg, max_pred_len=6
         enc_outs = inf_enc_out[0]
         enc_last_state = inf_enc_out[1:]
         paths = [(log(1.0), text_embedder.start_emb, enc_last_state)]
-
+        
         end_tokens = beam_search_model.text_embedder.end_embs
         for step in range(max_pred_len):
             paths, _ = beam_search_model.beam_search_exapand(paths, enc_outs, 1, beam_search=False, top_p=cfg['top_p'])
@@ -177,14 +184,24 @@ def run_nucleus_sampling(beam_search_model: TGEN_Model, das, cfg, max_pred_len=6
 
     return results
 
-
 def _run_beam_search_with_rescorer(i, da_emb, paths, enc_outs, beam_size, max_pred_len, seq2seq, cfg,
                                    rescorer=None, greedy_complete=[],
                                    save_progress_file=None, non_greedy_rescorer=None, length_norm_alpha=None):
     end_tokens = seq2seq.text_embedder.end_embs
+    print("[DEBUG FT] beam_search 191")
     for step in range(max_pred_len):
         # expand
+        if len(paths)<11:
+            print("prev ", str(paths)) # 1, 15
+        # print("prev 1", len(paths[0])) # 3, 3
+        # print("prev 2", len(paths[1]))
         new_paths, tok_probs = seq2seq.beam_search_exapand(paths, enc_outs, beam_size)
+        if len(new_paths)<11:
+            print("new ", str(new_paths)) # 15, 225
+            print("new path toks", str(new_paths[0][1]))
+        # print("new 1", len(new_paths[0])) # 
+        # print("new 2", len(new_paths[1]))
+        
         # prune
         if step in greedy_complete and rescorer is not None:
             paths = order_beam_after_greedy_complete(rescorer, new_paths, da_emb, i, enc_outs, seq2seq, max_pred_len,
@@ -203,14 +220,15 @@ def _run_beam_search_with_rescorer(i, da_emb, paths, enc_outs, beam_size, max_pr
                 toks = [x for x in seq2seq.text_embedder.reverse_embedding(path[1]) if x != PAD_TOK]
                 save_progress_file.write(" ".join(toks) + '\n')
             save_progress_file.write("\n")
+        
         if all([p[1][-1] in end_tokens for p in paths]):
             break
     return paths
 
-
 def run_beam_search_with_rescorer(scorer, beam_search_model: TGEN_Model, das, beam_size, cfg, only_rerank_final=False,
                                   save_final_beam_path='', greedy_complete=[], max_pred_len=60, save_progress_path=None,
                                   also_rerank_final=False, non_greedy_rescorer=None, length_norm_alpha=None):
+    print("[DEBUG FT] beam_search 221")
     global recorded_sections
     recorded_sections = []
 
@@ -244,7 +262,18 @@ def run_beam_search_with_rescorer(scorer, beam_search_model: TGEN_Model, das, be
         inf_enc_out = beam_search_model.encoder_model.predict(np.array([da_emb]))
         enc_outs = inf_enc_out[0]
         enc_last_state = inf_enc_out[1:]
+
+        # print(str(len(da_emb)))
+        # print("text_embedder.start_emb :",str(text_embedder.start_emb))
+        # print(str(enc_outs))
+        # print(str(enc_last_state))
+
         paths = [(log(1.0), text_embedder.start_emb, enc_last_state)]
+
+        print("da_emb ", str(da_emb))
+        print(text_embedder.start_emb)
+        print("START PATH")
+        print(str(paths[0][1]))
 
         if should_load_beams:
             paths = load_final_beams[i]
@@ -278,7 +307,10 @@ def run_beam_search_with_rescorer(scorer, beam_search_model: TGEN_Model, das, be
             paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, da_emb, i, cfg, ignore_flags=True)
 
         best_path = paths[0]
+        print("BEST PATH: ", best_path)
         pred_toks = text_embedder.reverse_embedding(best_path[1])
+
+        print("PRED toks: ", pred_toks)
         results.append(pred_toks)
         save_final_beam_path_toggle = not save_final_beam_path_toggle
 
@@ -291,7 +323,7 @@ def run_beam_search_with_rescorer(scorer, beam_search_model: TGEN_Model, das, be
             else:
                 splits = save_final_beam_path.split('.')
                 toggledPath = splits[0] + '_1.' + splits[1]
-
+            # print("SAVED FINAL BEAM: ", final_beams)
             pickle.dump(final_beams, open(toggledPath, "wb+"))
     print("*** Time to generate text =", time() - start)
 
@@ -299,6 +331,7 @@ def run_beam_search_with_rescorer(scorer, beam_search_model: TGEN_Model, das, be
         print("SECTIONS:", Counter(recorded_sections))
 
     return results
+
 
 # def get_best_from_beam_pairwise(beam, pair_wise_model, da_emb):
 #     path_scores = score_beams_pairwise(beam, pair_wise_model, da_emb)
