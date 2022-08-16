@@ -24,9 +24,9 @@ only_bottom: true
 loss_function: 'absolute_error'
 # reranker_loc: 'models/bm'
 reranker_loc: 'models/fact_bm'
-beam_save_path: "output_files/saved_beams/fact_factcc_test_more.pickle" # anggap gaada
+beam_save_path: "output_files/saved_beams/fact_summac_test_more.pickle" # anggap gaada
 
-scorer: 'factcc'
+scorer: 'fa'
 
 
 

@@ -3,7 +3,7 @@ scorer: 'identity'
 res_save_format:
   'ignore-{}.txt'
 beam_sizes:
- - 30
+ - 15
 only_rerank_final: false
-beam_save_path: "output_files/saved_beams/train_vanilla_{}.pickle"
+beam_save_path: "output_files/saved_beams/train_vanilla_next_{}.pickle"
 get_train_beam: true

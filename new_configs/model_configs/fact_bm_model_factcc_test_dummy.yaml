@@ -1,9 +1,12 @@
+# valid_size: 1500
+# epoch: 150
+# training_batch_size: 16
 valid_size: 1500
 epoch: 150
 training_batch_size: 16
 hidden_size: 128
 embedding_size: 50
-# tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
+use_size: 300
 
 fact_model_config: "new_configs/model_configs/fact_model.yaml"
 
@@ -13,7 +16,7 @@ train: true
 output_type: 'fact'
 logprob_preprocess_type: 'categorical_order'
 # beam_size: 30
-beam_size: 5
+beam_size: 20
 dropout: 0.0
 too_close_limit: 0.01
 num_ranks: 4
@@ -22,11 +25,10 @@ merge_middle_sections: false
 only_top: false
 only_bottom: true
 loss_function: 'absolute_error'
-# reranker_loc: 'models/bm'
-reranker_loc: 'models/fact_bm'
-beam_save_path: "output_files/saved_beams/fact_factcc_test_more.pickle" # anggap gaada
+reranker_loc: 'models/bm'
+# reranker_loc: 'models/fact-bm-xsum-factcc'
+# beam_save_path: "output_files/saved_beams/xsum_fact_factcc_full_factcc_train_vanilla_5_1.pickle" # yg pendek
+beam_save_path: "output_files/saved_beams/fact_factcc_test_20_ns_1_dummy.pickle"
 
 scorer: 'factcc'
-
-
 

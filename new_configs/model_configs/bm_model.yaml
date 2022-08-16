@@ -9,7 +9,8 @@ show_reranker_post_training_stats: false
 train: true
 output_type: 'regression_sections'
 logprob_preprocess_type: 'categorical_order'
-beam_size: 30
+beam_size: 5
+# beam_size: 30
 dropout: 0.0
 too_close_limit: 0.01
 num_ranks: 4
@@ -18,6 +19,6 @@ merge_middle_sections: false
 only_top: false
 only_bottom: true
 loss_function: 'absolute_error'
-reranker_loc: 'models/bm'
+reranker_loc: 'models/dummy-ori'
 beam_save_path: "output_files/saved_beams/train_vanilla_30.pickle"
 
