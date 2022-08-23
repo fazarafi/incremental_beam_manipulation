@@ -8,11 +8,11 @@ from pathlib import Path
 from base_models import TGEN_Model, TGEN_Reranker, PairwiseReranker
 from e2e_metrics.metrics.pymteval import BLEUScore
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
-from get_results_bleu_scores import print_results, test_res_official
-# from _get_results_fact_scores import test_summary_scores
+# from get_results_bleu_scores import print_results, test_res_official
+from _get_results_fact_scores import print_results, test_res_official, test_summary_scores
 from _beam_search_fact import run_beam_search_with_rescorer, run_nucleus_sampling
 from _scorer_functions_fact import get_score_function, get_score_function_fact
-from utils import get_training_variables, apply_absts, get_abstss_train, get_test_das, START_TOK, END_TOK, PAD_TOK, \
+from utils import get_training_variables, apply_absts, get_abstss_train, get_test_das, \
     get_true_sents, get_abstss_test, get_training_das_texts, SUMM_RESULTS_DIR, CONFIGS_MODEL_DIR, CONFIGS_DIR, postprocess, \
     get_multi_reference_training_variables, tgen_postprocess, get_args_presumm, get_timestamp_file, SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK
 
@@ -23,6 +23,7 @@ from PreSumm.src.models.model_builder import AbsSummarizer
 from PreSumm.src.models.predictor import build_predictor
 from pytorch_transformers import BertTokenizer
 import torch
+from time import time
 
 import sys
 sys.path.insert(0, './PreSumm/src') # hacky
@@ -76,9 +77,16 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                                               summ_beam_search_model=summ_model, 
                                               summ_data=summ_data,
                                               device=args.device)
-        preds = [[x for x in pred if x not in [START_TOK, END_TOK, PAD_TOK]] for pred in preds]
+        preds = [[x for x in pred if x not in [SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK]] for pred in preds]
         if "res_save_format" in cfg:
             save_filename = cfg["res_save_format"].format(cfg['scorer'], beam_size)
+        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac']:
+            fact_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
+            save_filename = "{}-{}-{}-{}-{}.txt".format(cfg['scorer'], fact_cfg["output_type"],
+                                                        fact_cfg["logprob_preprocess_type"],
+                                                        fact_cfg['beam_size'], beam_size)
+            save_filename = cfg.get("save_prefix", "") + save_filename
+        
         elif cfg['scorer'] in ['surrogate', 'greedy_decode_surrogate', 'surrogate_rev']:
             # Example surrogate-regression_reranker_relative-categorical_order_10_10.txt
             surrogate_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
@@ -86,7 +94,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                                                         surrogate_cfg["logprob_preprocess_type"],
                                                         surrogate_cfg['beam_size'], beam_size)
             save_filename = cfg.get("save_prefix", "") + save_filename
-
+        
         else:
             raise ValueError('Not saving files any where')
         save_filename_update = "-".join([str(x) for x in gred_comp]) + save_filename
@@ -109,13 +117,13 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                 else:
                     out_file.write(" ".join(pa) + '\n')
         
-        print("Official bleu score:", test_res_official(save_filename_update))
-        print("Official bleu score_:", test_res_fact_scores(save_filename_update))
+        # print("Official bleu score:", test_res_official(save_filename_update))
+        print("Summary Score: ", test_summary_scores(save_filename_update, scorer, 'test'))
 
 
 def do_nucleus_sampling(models, das_test, cfg, absts):
     preds = run_nucleus_sampling(models, das_test, max_pred_len=MAX_LEN, cfg=cfg)
-    preds = [[x for x in pred if x not in [START_TOK, END_TOK, PAD_TOK]] for pred in preds]
+    preds = [[x for x in pred if x not in [SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK]] for pred in preds]
     if "res_save_format" in cfg:
         save_filename = cfg["res_save_format"].format(1)
     else:
@@ -140,8 +148,8 @@ def do_nucleus_sampling(models, das_test, cfg, absts):
                 out_file.write(postprocess(" ".join(pa)) + '\n')
             else:
                 out_file.write(" ".join(pa) + '\n')
-    print("Official bleu score:", test_res_official(save_filename))
-    print("Official bleu score_:", test_res_fact_scores(save_filename))
+    # print("Official bleu score:", test_res_official(save_filename))
+    print("Fact score:", test_summary_scores(save_filename, 'factcc', 'test'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -193,6 +201,22 @@ if __name__ == '__main__':
                                         args.batch_size, device,
                                         shuffle=False, is_test=False)
 
+    # Wrap summarization training set
+    train_docs = []
+    train_segs = []
+    train_mask_src = []
+    train_summ = []
+    
+    print("Loading summary dataset...")
+    for batch in summ_train_data:
+        train_docs.append(batch.src)
+        train_segs.append(batch.segs)
+        train_mask_src.append(batch.mask_src)
+        train_summ.append(batch.tgt)
+
+    training_vals = list(zip(train_docs, train_segs, train_mask_src, train_summ))
+    print("Loading summary dataset done")
+
     print('Loading checkpoint from %s' % args.test_from)
     checkpoint = torch.load(args.test_from, map_location=lambda storage, loc: storage)
     summarization_models = AbsSummarizer(args, device, checkpoint)
@@ -203,9 +227,6 @@ if __name__ == '__main__':
             'PAD': tokenizer.vocab['[PAD]'], 'EOQ': tokenizer.vocab['[unused2]']}
     summ_model = build_predictor(args, tokenizer, symbols, summarization_models, logger)
 
-    
-    
-
     if cfg.get("first_x", False):
         das_test = das_test[:cfg['first_x']]
 
@@ -214,6 +235,6 @@ if __name__ == '__main__':
         do_nucleus_sampling(models, das_test, cfg, absts)
     else:
         for beam_size in cfg["beam_sizes"]:
-            do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_train_data)
+            do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, training_vals)
 
     print_results()

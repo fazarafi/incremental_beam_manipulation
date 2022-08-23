@@ -35,6 +35,8 @@ from pytorch_transformers import BertTokenizer
 import random
 
 MAX_LEN = 150
+
+SUMM_END_TOKENS = ['EOS', 2]
  
 def score_beams(rescorer, beam, da_emb, i):
     path_scores = []
@@ -111,14 +113,20 @@ def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=Non
     return result
 
 
-def order_beam_after_greedy_complete(rescorer, beam, da_emb, i, enc_outs, seq2seq, max_pred_len, cfg, length_norm_alpha=None, summ_data=None):
+def order_beam_after_greedy_complete(rescorer, beam, da_emb, i, enc_outs, seq2seq, max_pred_len, cfg, length_norm_alpha=None, 
+summ_data=None, summ_model=None, summ_enc_outs=None, beam_size=None):
     finished_beam = beam.copy()
     toks_pred_so_far = max([len(x[1]) for x in beam])
+    # print("max_pred_len: ", max_pred_len)
+    # print("toks_pred_so_far: ", toks_pred_so_far)
+    # print("finished beam: \n", finished_beam)
     for step in range(max_pred_len - toks_pred_so_far):
-        finished_beam, _ = seq2seq.beam_search_exapand(finished_beam, enc_outs, 1, length_norm_alpha=length_norm_alpha)
-        if all([p[1][-1] in seq2seq.text_embedder.end_embs for p in finished_beam]):
+        finished_beam = summ_model.beam_search_expand(finished_beam, 1, step, summ_data, summ_enc_outs)
+        
+        # finished_beam, _ = seq2seq.beam_search_exapand(finished_beam, enc_outs, 1, length_norm_alpha=length_norm_alpha)
+        if all([p[1][-1] in SUMM_END_TOKENS for p in finished_beam]):
             break
-    result = order_beam_acording_to_rescorer(rescorer, finished_beam, da_emb, i, cfg, beam)
+    result = order_beam_acording_to_rescorer(rescorer, finished_beam, da_emb, i, cfg, beam, summ_data=summ_data)
     return result
 
 
@@ -156,34 +164,35 @@ def _run_beam_search_with_rescorer(args, i, da_emb, paths, enc_outs, beam_size, 
                                    rescorer=None, greedy_complete=[],
                                    save_progress_file=None, non_greedy_rescorer=None, length_norm_alpha=None, 
                                    summ_model=None, summ_data=None, summ_enc_outs=None, summ_paths=None):
-    end_tokens = ['EOS', 2]
     for step in range(max_pred_len):
         # print("STEP KE- ", str(step))
         # expand
         # if type(summ_paths)=='list':
         #     summ_paths = torch.stack(summ_paths)
 
+        # print("step MAIN: ",step)
         # print("PATHS: ", summ_paths)
         new_paths = summ_model.beam_search_expand(summ_paths, beam_size, step, summ_data, summ_enc_outs)
 
         # prune
-        # print("PATHS: ", new_paths)
         # randomize whether we use scoring or not
         if (random.randint(0,9) % 2):
             if step in greedy_complete and rescorer is not None:
+                print("greedy_complete")
                 summ_paths = order_beam_after_greedy_complete(rescorer, new_paths, da_emb, i, enc_outs, seq2seq, max_pred_len,
-                                                        cfg, length_norm_alpha, summ_data=summ_data)
+                                                        cfg, length_norm_alpha, 
+                                                        summ_data=summ_data, summ_model=summ_model, summ_enc_outs=summ_enc_outs, beam_size=beam_size)
             elif step not in greedy_complete and non_greedy_rescorer is not None and cfg['non_greedy_scorer'] != 'identity':
-                summ_paths = dorder_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, da_emb, i, cfg, ignore_flags=True, summ_data=summ_data)
+                summ_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, da_emb, i, cfg, ignore_flags=True, summ_data=summ_data)
             elif not greedy_complete and rescorer is not None and cfg['scorer'] != 'identity':
                 summ_paths = order_beam_acording_to_rescorer(rescorer, new_paths, da_emb, i, cfg, summ_data=summ_data)
             else:
                 # TODO FT skip sorting?
-                summ_paths = new_paths
-                # summ_paths = sorted(new_paths, reverse=True)
+                # summ_paths = new_paths
+                summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
         else:
-            summ_paths = new_paths
-            # summ_paths = sorted(new_paths, reverse=True)
+            # summ_paths = new_paths
+            summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
             # print("Skip path scoring")
         
         summ_paths = summ_paths[:beam_size]
@@ -202,8 +211,7 @@ def _run_beam_search_with_rescorer(args, i, da_emb, paths, enc_outs, beam_size, 
             save_progress_file.write("\n")
                         
 
-        if all([p[1][-1] in end_tokens for p in summ_paths]):
-            # print("STOP!")
+        if all([p[1][-1] in SUMM_END_TOKENS for p in summ_paths]):
             break
 
     return summ_paths
@@ -231,6 +239,12 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     results = []
     should_load_beams = save_final_beam_path and os.path.exists(save_final_beam_path) and only_rerank_final
     should_save_beams = save_final_beam_path and not should_load_beams
+    
+    print("should_load_beams")
+    print(should_load_beams)
+    print("should_save_beams")
+    print(should_save_beams)
+
     load_final_beams = []
     final_beams = []
     if should_save_beams and os.path.exists(save_final_beam_path):
@@ -245,97 +259,191 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     start = time()
     print("Start generating")
     
+    print("save_final_beam_path: ", save_final_beam_path)
     print("Final beam: ",len(final_beams))
+    
     # for i, da_emb in tqdm(list(enumerate(da_embedder.get_score_function_factembeddings(das)))[len(final_beams):]):
-    i = 0
-    for batch in summ_data:
-        for src, segs, mask_src in zip(batch.src, batch.segs, batch.mask_src):
-            src = src.view(1, -1)
-            segs = segs.view(1, -1)
-            mask_src = mask_src.view(1, -1)
-            
-            i+=1
-            print("ad ", i)
-            if save_progress_file:
-                save_progress_file.write("Test {}\n".format(i))
+    # i = 0
+    
+    for i, (src, segs, mask_src, summ) in tqdm(list(enumerate(summ_data))[len(final_beams):]):
 
-            summ_enc_outs = summ_beam_search_model.encode_batch(src, segs, mask_src)
+        
+        src = src.view(1, -1)
+        segs = segs.view(1, -1)
+        mask_src = mask_src.view(1, -1)
+        
+        # i+=1
+        if save_progress_file:
+            save_progress_file.write("Test {}\n".format(i))
+
+        summ_enc_outs = summ_beam_search_model.encode_batch(src, segs, mask_src)
+        
+        # inf_enc_out = beam_search_model.encoder_model.predict(np.array([da_emb]))
+        # enc_outs = inf_enc_out[0]
+        # enc_last_state = inf_enc_out[1:]
+        # paths = [(log(1.0), text_embedder.start_emb, enc_last_state)]
+        
+        summ_enc_out = summ_enc_outs[0]
+        summ_enc_last_state = summ_enc_outs[1:]
+        summ_paths = [(
+            log(1.0),
+            torch.tensor(
+                [summ_beam_search_model.start_token],
+                dtype=torch.long,
+                device=args.device
+            ),
+            summ_enc_last_state
+        )]
             
-            # inf_enc_out = beam_search_model.encoder_model.predict(np.array([da_emb]))
-            # enc_outs = inf_enc_out[0]
-            # enc_last_state = inf_enc_out[1:]
-            # paths = [(log(1.0), text_embedder.start_emb, enc_last_state)]
+        
+        # print("SIZE: ",str(summ_paths.size()))
+        
+        if should_load_beams:
+            paths = load_final_beams[i]
+        else:
+            paths = _run_beam_search_with_rescorer(
+                args, 
+                i=i,
+                da_emb=None,
+                paths=None,
+                enc_outs=None,
+                beam_size=beam_size,
+                max_pred_len=max_pred_len,
+                seq2seq=beam_search_model,
+                rescorer=scorer if not only_rerank_final else None,
+                greedy_complete=greedy_complete,
+                save_progress_file=save_progress_file,
+                cfg=cfg,
+                non_greedy_rescorer=non_greedy_rescorer,
+                length_norm_alpha=length_norm_alpha,
+                summ_model=summ_beam_search_model,
+                summ_data=src,
+                summ_enc_outs=summ_enc_outs,
+                summ_paths=summ_paths
+            )
+
+        final_beams.append(paths)
+
+        if only_rerank_final or also_rerank_final:
+            paths = order_beam_acording_to_rescorer(scorer, paths, None, i, cfg, summ_data=src)
             
-            summ_enc_out = summ_enc_outs[0]
-            summ_enc_last_state = summ_enc_outs[1:]
-            summ_paths = [(
-                log(1.0),
-                torch.tensor(
-                    [summ_beam_search_model.start_token],
-                    dtype=torch.long,
-                    device=args.device
-                ),
-                summ_enc_last_state
-            )]
-                
-            
-            # print("SIZE: ",str(summ_paths.size()))
-            
-            if should_load_beams:
-                paths = load_final_beams[i]
+        # A hack to handle the what we need right now - this should be updated
+        elif non_greedy_rescorer:
+            # TODO FT PARTIAL
+            paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, None, i, cfg, ignore_flags=True, summ_data=src)
+
+        best_path = paths[0]
+        
+        # print(best_path)
+        
+        pred_toks = summ_beam_search_model.convert_id_to_text(best_path[1])
+        # print("BEST")
+        # print(pred_toks)
+        results.append(pred_toks)
+        save_final_beam_path_toggle = not save_final_beam_path_toggle
+
+        # This is inefficent but means that will cache
+        if should_save_beams and (i % 100 == 0 or len(final_beams) == len(src)):
+            print("Saving final beam states at ", save_final_beam_path)
+
+            if save_final_beam_path_toggle:
+                toggledPath = save_final_beam_path
             else:
-                paths = _run_beam_search_with_rescorer(
-                    args, 
-                    i=i,
-                    da_emb=None,
-                    paths=None,
-                    enc_outs=None,
-                    beam_size=beam_size,
-                    max_pred_len=max_pred_len,
-                    seq2seq=beam_search_model,
-                    rescorer=scorer if not only_rerank_final else None,
-                    greedy_complete=greedy_complete,
-                    save_progress_file=save_progress_file,
-                    cfg=cfg,
-                    non_greedy_rescorer=non_greedy_rescorer,
-                    length_norm_alpha=length_norm_alpha,
-                    summ_model=summ_beam_search_model,
-                    summ_data=src,
-                    summ_enc_outs=summ_enc_outs,
-                    summ_paths=summ_paths
-                )
+                splits = save_final_beam_path.split('.')
+                toggledPath = splits[0] + '.' + splits[1]
 
-            final_beams.append(paths)
+            pickle.dump(final_beams, open(toggledPath, "wb+"))
 
-            if only_rerank_final or also_rerank_final:
-                paths = order_beam_acording_to_rescorer(scorer, paths, None, i, cfg, summ_data=src)
+
+
+    # for batch in summ_data:
+    #     for i, src, segs, mask_src in tqdm(zip(batch.src, batch.segs, batch.mask_src)):
+    #         src = src.view(1, -1)
+    #         segs = segs.view(1, -1)
+    #         mask_src = mask_src.view(1, -1)
+            
+    #         i+=1
+    #         if save_progress_file:
+    #             save_progress_file.write("Test {}\n".format(i))
+
+    #         summ_enc_outs = summ_beam_search_model.encode_batch(src, segs, mask_src)
+            
+    #         # inf_enc_out = beam_search_model.encoder_model.predict(np.array([da_emb]))
+    #         # enc_outs = inf_enc_out[0]
+    #         # enc_last_state = inf_enc_out[1:]
+    #         # paths = [(log(1.0), text_embedder.start_emb, enc_last_state)]
+            
+    #         summ_enc_out = summ_enc_outs[0]
+    #         summ_enc_last_state = summ_enc_outs[1:]
+    #         summ_paths = [(
+    #             log(1.0),
+    #             torch.tensor(
+    #                 [summ_beam_search_model.start_token],
+    #                 dtype=torch.long,
+    #                 device=args.device
+    #             ),
+    #             summ_enc_last_state
+    #         )]
                 
-            # A hack to handle the what we need right now - this should be updated
-            elif non_greedy_rescorer:
-                # TODO FT PARTIAL
-                paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, None, i, cfg, ignore_flags=True, summ_data=src)
-
-            best_path = paths[0]
             
-            # print(best_path)
+    #         # print("SIZE: ",str(summ_paths.size()))
             
-            pred_toks = summ_beam_search_model.convert_id_to_text(best_path[1])
-            # print("BEST")
-            # print(pred_toks)
-            results.append(pred_toks)
-            save_final_beam_path_toggle = not save_final_beam_path_toggle
+    #         if should_load_beams:
+    #             paths = load_final_beams[i]
+    #         else:
+    #             paths = _run_beam_search_with_rescorer(
+    #                 args, 
+    #                 i=i,
+    #                 da_emb=None,
+    #                 paths=None,
+    #                 enc_outs=None,
+    #                 beam_size=beam_size,
+    #                 max_pred_len=max_pred_len,
+    #                 seq2seq=beam_search_model,
+    #                 rescorer=scorer if not only_rerank_final else None,
+    #                 greedy_complete=greedy_complete,
+    #                 save_progress_file=save_progress_file,
+    #                 cfg=cfg,
+    #                 non_greedy_rescorer=non_greedy_rescorer,
+    #                 length_norm_alpha=length_norm_alpha,
+    #                 summ_model=summ_beam_search_model,
+    #                 summ_data=src,
+    #                 summ_enc_outs=summ_enc_outs,
+    #                 summ_paths=summ_paths
+    #             )
 
-            # This is inefficent but means that will cache
-            if should_save_beams and (i % 100 == 0 or len(final_beams) == len(src)):
-                print("Saving final beam states at ", save_final_beam_path)
+    #         final_beams.append(paths)
 
-                if save_final_beam_path_toggle:
-                    toggledPath = save_final_beam_path
-                else:
-                    splits = save_final_beam_path.split('.')
-                    toggledPath = splits[0] + '_1.' + splits[1]
+    #         if only_rerank_final or also_rerank_final:
+    #             paths = order_beam_acording_to_rescorer(scorer, paths, None, i, cfg, summ_data=src)
+                
+    #         # A hack to handle the what we need right now - this should be updated
+    #         elif non_greedy_rescorer:
+    #             # TODO FT PARTIAL
+    #             paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, None, i, cfg, ignore_flags=True, summ_data=src)
 
-                pickle.dump(final_beams, open(toggledPath, "wb+"))
+    #         best_path = paths[0]
+            
+    #         # print(best_path)
+            
+    #         pred_toks = summ_beam_search_model.convert_id_to_text(best_path[1])
+    #         # print("BEST")
+    #         # print(pred_toks)
+    #         results.append(pred_toks)
+    #         save_final_beam_path_toggle = not save_final_beam_path_toggle
+
+    #         # This is inefficent but means that will cache
+    #         if should_save_beams and (i % 100 == 0 or len(final_beams) == len(src)):
+    #             print("Saving final beam states at ", save_final_beam_path)
+
+    #             if save_final_beam_path_toggle:
+    #                 toggledPath = save_final_beam_path
+    #             else:
+    #                 splits = save_final_beam_path.split('.')
+    #                 toggledPath = splits[0] + '_1.' + splits[1]
+
+    #             pickle.dump(final_beams, open(toggledPath, "wb+"))
+    
     print("*** Time to generate text =", time() - start)
 
 
