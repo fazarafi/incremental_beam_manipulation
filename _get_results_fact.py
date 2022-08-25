@@ -202,20 +202,22 @@ if __name__ == '__main__':
                                         shuffle=False, is_test=False)
 
     # Wrap summarization training set
-    train_docs = []
-    train_segs = []
-    train_mask_src = []
-    train_summ = []
     
-    print("Loading summary dataset...")
-    for batch in summ_train_data:
-        train_docs.append(batch.src)
-        train_segs.append(batch.segs)
-        train_mask_src.append(batch.mask_src)
-        train_summ.append(batch.tgt)
+    # train_docs = []
+    # train_segs = []
+    # train_mask_src = []
+    # train_summ = []
+    
+    # print("Loading summary dataset...")
+    # for batch in summ_train_data:
+    #     print("batch.src: ", len(batch.src))
+    #     train_docs.append(batch.src)
+    #     train_segs.append(batch.segs)
+    #     train_mask_src.append(batch.mask_src)
+    #     train_summ.append(batch.tgt)
 
-    training_vals = list(zip(train_docs, train_segs, train_mask_src, train_summ))
-    print("Loading summary dataset done")
+    # training_vals = list(zip(train_docs, train_segs, train_mask_src, train_summ))
+    # print("Loading summary dataset done")
 
     print('Loading checkpoint from %s' % args.test_from)
     checkpoint = torch.load(args.test_from, map_location=lambda storage, loc: storage)
@@ -235,6 +237,6 @@ if __name__ == '__main__':
         do_nucleus_sampling(models, das_test, cfg, absts)
     else:
         for beam_size in cfg["beam_sizes"]:
-            do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, training_vals)
+            do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_train_data)
 
     print_results()
