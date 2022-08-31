@@ -77,7 +77,6 @@ def get_length_normalised_score_func(alpha):
 
 def get_oracle_score_func(bleu, true_vals, text_embedder, reverse):
     def func(path, logprob, da_emb, da_i, beam_size):
-        print("2 PATH: ",str(len(path)))
         true = true_vals[da_i]
         toks = text_embedder.reverse_embedding(path[1])
         pred = [x for x in toks if x not in [START_TOK, END_TOK, PAD_TOK]]
@@ -158,55 +157,5 @@ def get_score_function(scorer, cfg, models, true_vals, beam_size, alpha=0.65):
         return get_random_score_func()
     elif scorer == 'length_normalised':
         return get_length_normalised_score_func(alpha)
-    else:
-        raise ValueError("Unknown Scorer {}".format(cfg['scorer']))
-
-
-# TODO FT scorers
-
-def convert_id_to_text(tokenizer, token_ids):
-    # Convert token_ids to text for factual consistency scoring
-    text = tokenizer.convert_ids_to_tokens([int(n) for n in token_ids])
-    text = ' '.join(text).replace(' ##','')
-    text = text.replace('[unused0]', '').replace('[unused3]', '').replace('[PAD]', '').replace('[unused1]', '').replace(r' +', ' ').replace(' [unused2] ', '<q>').replace('[unused2]', '').strip()
-    
-    return text
-
-
-def get_factcc_score_function(docs_hypo, summary_hypo):
-    def func(path, logprob, da_emb, da_i, beam_size):
-        print("TODO Faza")
-        factcc_scorer = FactccCaller()
-        score = factcc_scorer.classify(docs_hypo, summary_hypo)
-        
-    return func
-
-def get_summac_score_function(docs_hypo, summary_hypo):
-    def func(path, logprob, da_emb, da_i, beam_size):
-        print("TODO Faza")
-        score = summac_cls(docs_hypo, summary_tgt)
-
-    return func
-
-def get_score_function_fact(args, scorer, docs_hypo, summary_hypo, cfg, models, true_vals, beam_size, alpha=0.65):
-    print("Using Scorer: {}".format(scorer))
-
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
-    symbols = {'BOS': tokenizer.vocab['[unused0]'], 'EOS': tokenizer.vocab['[unused1]'],
-               'PAD': tokenizer.vocab['[PAD]'], 'EOQ': tokenizer.vocab['[unused2]']}
-    
-
-    docs_hypo = convert_id_to_text(tokenizer, docs_hypo)
-    summary_hypo = convert_id_to_text(tokenizer, summary_hypo)
-
-    # convert docs and hypo to text
-    if scorer == "factcc":
-        return get_factcc_score_function(docs_hypo, summary_hypo)
-    elif scorer == "summac":
-        return get_summac_score_function(docs_hypo, summary_hypo)
-    elif scorer == "fact_mix":
-        return (get_factcc_score_function(docs_hypo, summary_hypo)+get_summac_score_function(docs_hypo, summary_hypo))/2
-    elif scorer == "weighted_fact":
-        print("TODO")
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))

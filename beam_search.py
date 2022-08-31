@@ -148,7 +148,12 @@ def order_beam_after_greedy_complete(rescorer, beam, da_emb, i, enc_outs, seq2se
     finished_beam = beam.copy()
     toks_pred_so_far = max([len(x[1]) for x in beam])
     for step in range(max_pred_len - toks_pred_so_far):
+        print(step)
+        print("BEFORE: len finished_beam: ", len(finished_beam))
+        print(str(finished_beam))
         finished_beam, _ = seq2seq.beam_search_exapand(finished_beam, enc_outs, 1, length_norm_alpha=length_norm_alpha)
+        print("AFTER: len finished_beam: ", len(finished_beam))
+        print(str(finished_beam))
         if all([p[1][-1] in seq2seq.text_embedder.end_embs for p in finished_beam]):
             break
     result = order_beam_acording_to_rescorer(rescorer, finished_beam, da_emb, i, cfg, beam)
@@ -191,14 +196,14 @@ def _run_beam_search_with_rescorer(i, da_emb, paths, enc_outs, beam_size, max_pr
     print("[DEBUG FT] beam_search 191")
     for step in range(max_pred_len):
         # expand
-        if len(paths)<11:
-            print("prev ", str(paths)) # 1, 15
+        # if len(paths)<11:
+            # print("prev ", str(paths)) # 1, 15
         # print("prev 1", len(paths[0])) # 3, 3
         # print("prev 2", len(paths[1]))
         new_paths, tok_probs = seq2seq.beam_search_exapand(paths, enc_outs, beam_size)
-        if len(new_paths)<11:
-            print("new ", str(new_paths)) # 15, 225
-            print("new path toks", str(new_paths[0][1]))
+        # if len(new_paths)<11:
+            # print("new ", str(new_paths)) # 15, 225
+            # print("new path toks", str(new_paths[0][1]))
         # print("new 1", len(new_paths[0])) # 
         # print("new 2", len(new_paths[1]))
         
@@ -270,10 +275,10 @@ def run_beam_search_with_rescorer(scorer, beam_search_model: TGEN_Model, das, be
 
         paths = [(log(1.0), text_embedder.start_emb, enc_last_state)]
 
-        print("da_emb ", str(da_emb))
-        print(text_embedder.start_emb)
-        print("START PATH")
-        print(str(paths[0][1]))
+        # print("da_emb ", str(da_emb))
+        # print(text_embedder.start_emb)
+        # print("START PATH")
+        # print(str(paths[0][1]))
 
         if should_load_beams:
             paths = load_final_beams[i]
@@ -307,10 +312,10 @@ def run_beam_search_with_rescorer(scorer, beam_search_model: TGEN_Model, das, be
             paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, da_emb, i, cfg, ignore_flags=True)
 
         best_path = paths[0]
-        print("BEST PATH: ", best_path)
+        # print("BEST PATH: ", best_path)
         pred_toks = text_embedder.reverse_embedding(best_path[1])
 
-        print("PRED toks: ", pred_toks)
+        # print("PRED toks: ", pred_toks)
         results.append(pred_toks)
         save_final_beam_path_toggle = not save_final_beam_path_toggle
 
