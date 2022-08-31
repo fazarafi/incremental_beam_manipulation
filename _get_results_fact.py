@@ -24,6 +24,7 @@ from PreSumm.src.models.predictor import build_predictor
 from pytorch_transformers import BertTokenizer
 import torch
 from time import time
+import pickle
 
 import sys
 sys.path.insert(0, './PreSumm/src') # hacky
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 MAX_LEN = 150
 
-def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_data):
+def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_data, len_summ_data):
     print("Beam size = {} ".format(beam_size))
     beam_save_path = cfg.get('beam_save_path', '')
     if beam_save_path:
@@ -76,7 +77,8 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                                               summ_scorer=scorer_func, 
                                               summ_beam_search_model=summ_model, 
                                               summ_data=summ_data,
-                                              device=args.device)
+                                              device=args.device,
+                                              len_summ_data=len_summ_data)
         preds = [[x for x in pred if x not in [SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK]] for pred in preds]
         if "res_save_format" in cfg:
             save_filename = cfg["res_save_format"].format(cfg['scorer'], beam_size)
@@ -118,7 +120,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                     out_file.write(" ".join(pa) + '\n')
         
         # print("Official bleu score:", test_res_official(save_filename_update))
-        print("Summary Score: ", test_summary_scores(save_filename_update, scorer, 'test'))
+        print("Summary Score: ", test_summary_scores(args, save_filename_update, cfg['scorer'], mode='test'))
 
 
 def do_nucleus_sampling(models, das_test, cfg, absts):
@@ -197,10 +199,13 @@ if __name__ == '__main__':
 
     
     
-    summ_train_data = data_loader.Dataloader(args, load_dataset(args, 'train', shuffle=False),
+    # len_summ_data = 11273 for xsum
+    len_summ_data = 0
+    summ_train_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
                                         args.batch_size, device,
                                         shuffle=False, is_test=False)
 
+    
     # Wrap summarization training set
     
     # train_docs = []
@@ -208,13 +213,18 @@ if __name__ == '__main__':
     # train_mask_src = []
     # train_summ = []
     
-    # print("Loading summary dataset...")
-    # for batch in summ_train_data:
-    #     print("batch.src: ", len(batch.src))
-    #     train_docs.append(batch.src)
-    #     train_segs.append(batch.segs)
-    #     train_mask_src.append(batch.mask_src)
-    #     train_summ.append(batch.tgt)
+    print("Counting dataset length...")
+
+    for batch in summ_train_data:
+        len_summ_data += len(batch.src)
+        
+        # train_docs.append(batch.src)
+        # train_segs.append(batch.segs)
+        # train_mask_src.append(batch.mask_src)
+        # train_summ.append(batch.tgt)
+
+    print("Total data: ", len_summ_data)
+
 
     # training_vals = list(zip(train_docs, train_segs, train_mask_src, train_summ))
     # print("Loading summary dataset done")
@@ -237,6 +247,12 @@ if __name__ == '__main__':
         do_nucleus_sampling(models, das_test, cfg, absts)
     else:
         for beam_size in cfg["beam_sizes"]:
-            do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_train_data)
+            # summ_train_data = pickle.loads(pickle.dumps(summ_train_data_ori, -1))
+            st = time()
+            summ_train_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
+                                        args.batch_size, device, 
+                                        shuffle=False, is_test=False)
+            print("Dataset loading time: ", time() - st)
+            do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_train_data, len_summ_data)
 
-    print_results()
+    print_results(args)

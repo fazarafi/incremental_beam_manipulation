@@ -59,6 +59,8 @@ def get_fact_scores(args, scorer, factcc_scorer, docs, summ):
     elif scorer == 'summac':
         final_score = summac_cls(docs, summ)
     elif scorer == 'fact_mixed':
+        w1 = args.w1
+        w2 = args.w2
         factcc_score = factcc_scorer.classify(docs, summ)
         summac_score = summac_cls(docs, summ)
         final_score = (factcc_score + summac_score)/2
@@ -180,7 +182,7 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
     if merge_middles and only_top:
             print("Ignoring only top since have merge_middle_sections set")
     
-    training_vals = list(zip(final_beam, train_texts, train_das))
+    # training_vals = list(zip(final_beam, train_texts, train_das))
 
 
     # Wrap summarization training set
@@ -336,7 +338,7 @@ symbols = {'BOS': tokenizer.vocab['[unused0]'], 'EOS': tokenizer.vocab['[unused1
 
 # TODO FT check if it's correct
 
-summ_train_data = data_loader.Dataloader(args, load_dataset(args, 'train', shuffle=False), args.batch_size, device, shuffle=False, is_test=True)
+summ_train_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False), args.batch_size, device, shuffle=False, is_test=True)
 
 summary_embedder = list()
 document_embedder = list()
@@ -404,7 +406,7 @@ if cfg["show_reranker_post_training_stats"]:
     # GET Summary model testing
     test_docs_data = []
     test_summ_data = []
-    summ_test_data = data_loader.Dataloader(args, load_dataset(args, 'train', shuffle=False),
+    summ_test_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
                                         args.batch_size, device, shuffle=False, is_test=True)
 
     for batch in summ_test_data:

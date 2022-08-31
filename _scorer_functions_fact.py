@@ -176,7 +176,6 @@ def get_factcc_score_function(scorer, tokenizer):
         docs = convert_id_to_text(tokenizer, docs[0])
         summ_hypo = convert_id_to_text(tokenizer, path)
         score = scorer.classify(docs, summ_hypo)
-        # print("SKOR FactCC: ", str(score))
         
         return score
         
@@ -192,7 +191,7 @@ def get_summac_score_function(tokenizer):
 
     return func
 
-def get_mixed_fact_score_function(fact_scorer, tokenizer):
+def get_mixed_fact_score_function(fact_scorer, tokenizer, w1, w2):
     def func(path, logprob, da_emb, da_i, beam_size, docs):    
         docs = convert_id_to_text(tokenizer, docs[0])
         summ_hypo = convert_id_to_text(tokenizer, path)
@@ -200,11 +199,11 @@ def get_mixed_fact_score_function(fact_scorer, tokenizer):
 
         factcc_score = fact_scorer.classify(docs, summ_hypo)
         
-        w_1 = 1
-        w_2 = 1
+        w_1 = w1
+        w_2 = w2
 
         score = (w_1 * factcc_score + w_2 * summac_score)/(w_1 + w_2)  # TODO FT need to train weight
-        print("SKOR Fact MIXED: ", str(score))
+        # print("SKOR Fact MIXED: ", str(score))
 
         return score
 
@@ -214,8 +213,7 @@ def get_score_function_fact(args, scorer, summ_data, true_summ, cfg, beam_size, 
     print("Using Scorer: {}".format(scorer))
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
-    # TODO split data to docs and summ
-
+    
     # convert docs and hypo to text
     if scorer == "factcc":
         factcc = FactccCaller()
@@ -224,7 +222,7 @@ def get_score_function_fact(args, scorer, summ_data, true_summ, cfg, beam_size, 
         return get_summac_score_function(tokenizer)
     elif scorer == "fact_mixed":
         factcc = FactccCaller()
-        return get_mixed_fact_score_function(factcc, tokenizer)
+        return get_mixed_fact_score_function(factcc, tokenizer, args.w1, args.w2)
     elif scorer == "weighted_fact":
         print("TODO")
     else:

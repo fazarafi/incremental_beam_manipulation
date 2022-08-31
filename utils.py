@@ -41,8 +41,6 @@ SUMM_END_TOK = 'EOS'
 SUMM_PAD_TOK = 'PAD'
 SUMM_CLS_TOK = 'CLS'
 
-
-
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
@@ -344,6 +342,7 @@ def get_args_presumm(parser):
     parser.add_argument("-mode", default='train', type=str, choices=['train', 'validate', 'test'])
     parser.add_argument("-bert_data_path", default='PreSumm/bert_data/bert_data_dummy/xsum') # TODO change
     parser.add_argument("-model_path", default='PreSumm/models/')
+    parser.add_argument("-use_data", default='train', type=str, choices=['train', 'valid', 'test'])
 
     parser.add_argument("-result_path", default='PreSumm/results/xsum')
     parser.add_argument("-temp_dir", default='PreSumm/temp')
