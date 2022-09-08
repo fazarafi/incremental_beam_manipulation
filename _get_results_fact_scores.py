@@ -36,7 +36,7 @@ def average(lst):
 def load_data(pred_file, ref_file):
     return []
 
-def test_summary_scores_calon_beneran(args, pred_file_name, scorer, pred_mode=None):
+def test_summary_scores_official(args, pred_file_name, scorer):
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
 
@@ -70,6 +70,7 @@ def test_summary_scores_calon_beneran(args, pred_file_name, scorer, pred_mode=No
             summaries_ref.append(convert_id_to_text(tokenizer, src))
         counter += len(batch.src)
     
+    final_results = list()
     final_scores = {}
     final_scores["scorer"] = scorer
 
@@ -81,19 +82,24 @@ def test_summary_scores_calon_beneran(args, pred_file_name, scorer, pred_mode=No
     summaries_sys = summaries_sys[:data_length]
 
     if (scorer=='factcc'):
+        
         print('TEST WITH FactCC')
+        final_scores["scorer"] = 'factcc'
         factcc_scorer = FactccCaller()
         results = factcc_scorer.evaluate_batch(documents_ref, summaries_sys)
         final_scores["raw_scores"] = results
 
+
     elif (scorer=='summac'):
         print('TEST WITH SummaC')
+        final_scores["scorer"] = 'summac'
         f1, scores = summac_evaluate_batch(documents_ref, summaries_sys)
         final_scores["raw_scores"] = scores
         final_scores["f1_score"] = f1
 
     elif (scorer=='feqa'):
         print('TEST WITH FEQA')
+        final_scores["scorer"] = 'feqa'
         model = FEQA(use_gpu=True)
         # scores = model.compute_score(documents_ref, summaries_ref, aggregate=False)
         # average = average(scores)
@@ -104,6 +110,7 @@ def test_summary_scores_calon_beneran(args, pred_file_name, scorer, pred_mode=No
 
     elif (scorer=='rouge'):
         print('TEST WITH ROUGE')
+        final_scores["scorer"] = 'rouge'
         rouge = Rouge()
         scores = rouge.get_scores(summaries_sys, summaries_ref, avg=True)
         final_scores["raw_scores"] = scores
@@ -265,6 +272,7 @@ def print_results(args, summ_scorer=None):
 
     for _, filename, bs in sorted(filename_bs, key=lambda x: (x[0], int(x[2]))):
         print(filename, bs, test_summary_scores(args, filename, summ_scorer, 'test'))
+        # print(filename, bs, test_summary_scores_official(args, filename, summ_scorer))
 
 
 if __name__ == "__main__":
@@ -276,6 +284,7 @@ if __name__ == "__main__":
     parser = get_args_presumm(parser)
 
     parser.add_argument('-c', default=None)
+    parser.add_argument('-summ_scorer', default='factcc') # TODO multi tests
     args = parser.parse_args()
 
 
@@ -291,7 +300,12 @@ if __name__ == "__main__":
     print_results(args)
     
     
-    result = test_summary_scores(args, '', 'factcc', 'test')
+    for scorer in scorers:
+        result = test_summary_scores_official(args, scorer)    
+        print_results(args, scorer)
+
+
+    result = test_summary_scores_official(args, '', 'factcc', 'test')
     print(result)
     
     result = test_summary_scores(args, '', 'summac', 'test')

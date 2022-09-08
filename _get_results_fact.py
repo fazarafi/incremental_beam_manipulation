@@ -56,7 +56,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
     if "non_greedy_scorer" in cfg:
         non_greedy_score_func = get_score_function_fact(args, cfg['non_greedy_scorer'], cfg, models, true_vals, beam_size, alpha)
     if "greedy_complete_at" in cfg:
-        greedy_complete = cfg["greedy_complete_at"]
+        greedy_complete = cfg["xxx"]
     else:
         greedy_complete_rate = cfg.get("greedy_complete_rate", max_pred_len + 1)
         greedy_complete = [list(range(greedy_complete_rate, max_pred_len, greedy_complete_rate))]
@@ -74,12 +74,14 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                                               cfg=cfg,
                                               non_greedy_rescorer=non_greedy_score_func,
                                               length_norm_alpha=alpha if cfg.get('non_greedy_scorer', None) == 'length_normalised' else None,
-                                              summ_scorer=scorer_func, 
-                                              summ_beam_search_model=summ_model, 
+                                              summ_scorer=scorer_func,
+                                              summ_beam_search_model=summ_model,
                                               summ_data=summ_data,
                                               device=args.device,
                                               len_summ_data=len_summ_data)
+        print("[DEBUG FT] preds before: ", len(preds))
         preds = [[x for x in pred if x not in [SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK]] for pred in preds]
+        print("[DEBUG FT] preds AFTER: ", len(preds))
         if "res_save_format" in cfg:
             save_filename = cfg["res_save_format"].format(cfg['scorer'], beam_size)
         elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac']:
@@ -119,8 +121,8 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                 else:
                     out_file.write(" ".join(pa) + '\n')
         
-        # print("Official bleu score:", test_res_official(save_filename_update))
         print("Summary Score: ", test_summary_scores(args, save_filename_update, cfg['scorer'], mode='test'))
+        # print("Summary Score: ", test_summary_scores_official(args, save_filename_update, cfg['scorer']))
 
 
 def do_nucleus_sampling(models, das_test, cfg, absts):

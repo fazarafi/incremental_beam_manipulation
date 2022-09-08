@@ -10,6 +10,7 @@ from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls
 from pytorch_transformers import BertTokenizer
 
+from time import time 
 
 
 def get_regressor_score_func(regressor, text_embedder, w2v):
@@ -185,17 +186,23 @@ def get_summac_score_function(tokenizer):
     def func(path, logprob, da_emb, da_i, beam_size, docs):    
         docs = convert_id_to_text(tokenizer, docs[0])
         summ_hypo = convert_id_to_text(tokenizer, path)
+
+        start = time()
         score = summac_cls(docs, summ_hypo)
         # print("SKOR SummaC: ", str(score))
+        print("summac scoring: ", time()-start)
         return score
 
     return func
 
-def get_mixed_fact_score_function(fact_scorer, tokenizer, w1, w2):
+def get_mixed_fact_score_function(fact_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
     def func(path, logprob, da_emb, da_i, beam_size, docs):    
         docs = convert_id_to_text(tokenizer, docs[0])
         summ_hypo = convert_id_to_text(tokenizer, path)
+        
+        start = time()
         summac_score = summac_cls(docs, summ_hypo)
+        print("summac scoring: ", time()-start)
 
         factcc_score = fact_scorer.classify(docs, summ_hypo)
         

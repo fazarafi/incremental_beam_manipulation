@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 def get_fact_scores(args, scorer, factcc_scorer, docs, summ):
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
     
-    # print("get_fac_sco")
     # print(docs)
     # print(summ)
     
@@ -63,15 +62,13 @@ def get_fact_scores(args, scorer, factcc_scorer, docs, summ):
         w2 = args.w2
         factcc_score = factcc_scorer.classify(docs, summ)
         summac_score = summac_cls(docs, summ)
-        final_score = (factcc_score + summac_score)/2
+        final_score = (w1*factcc_score + w2*summac_score)/(w1+w2)
     # TODO FT use weight
 
     return final_score
 
 
 def get_embeddings_summary(tokenised_texts, symbols, length):
-    print("get_embeddings_summary")
-    
     pad_token = symbols[SUMM_PAD_TOK]
     
     # length = 0
@@ -344,7 +341,7 @@ summary_embedder = list()
 document_embedder = list()
 
 i=0
-max_data = -99 # cfg['use_size']
+max_data = cfg['use_size'] if 'use_size' in cfg else -99
 batch_list = []
 for batch in summ_train_data:
     i+=1

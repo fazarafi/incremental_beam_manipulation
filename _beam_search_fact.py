@@ -351,18 +351,13 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     # TODO FT above remove if below works
 
 
-    # batch_size = args.batch_size
-
-    # batch_skipped = int(len(final_beams)/batch_size)
-
-    # remaining = len(final_beams) % batch_size
-
     counted = False
     i = 0
 
     batch_skipped = 0
     batch_skipped = 0
     remaining = 0
+    batch_size = 0
     
     with torch.no_grad():
         for batch in summ_data:
@@ -373,15 +368,14 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                 remaining = len(final_beams) % batch_size
                 counted = True
 
-            i += 1
             if i <= batch_skipped:
+                i += 1 # TODO FT revamp this hack
                 continue
             
             j = 0
             for src, segs, mask_src in zip(batch.src, batch.segs, batch.mask_src):
                 if (i == batch_skipped+1 and j < remaining):
-                    j += 1
-                    # print("SKIP j: ", (i * batch_size) + j)
+                    print("SKIP j: ", (i * batch_size) + j)
                 else:
                     print("Process summ_data: ke-", (i * batch_size) + j)
 
@@ -412,7 +406,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                     )]
                         
                     if should_load_beams:
-                        paths = load_final_beams[i]
+                        paths = load_final_beams[(i * batch_size) + j]
                     else:
                         paths = _run_beam_search_with_rescorer(
                             args, 
@@ -464,6 +458,10 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                             splits = save_final_beam_path.split('.')
                             toggledPath = splits[0] + '.' + splits[1]
                         pickle.dump(final_beams, open(toggledPath, "wb+"))
+
+                j += 1
+            i += 1
+                    
     
     print("*** Time to generate text =", time() - start)
 
