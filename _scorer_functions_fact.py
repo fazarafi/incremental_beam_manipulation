@@ -190,7 +190,7 @@ def get_summac_score_function(tokenizer):
         start = time()
         score = summac_cls(docs, summ_hypo)
         # print("SKOR SummaC: ", str(score))
-        print("summac scoring: ", time()-start)
+        # print("summac scoring: ", time()-start)
         return score
 
     return func
@@ -202,7 +202,7 @@ def get_mixed_fact_score_function(fact_scorer, tokenizer, w1, w2): # TODO FT use
         
         start = time()
         summac_score = summac_cls(docs, summ_hypo)
-        print("summac scoring: ", time()-start)
+        # print("summac scoring: ", time()-start)
 
         factcc_score = fact_scorer.classify(docs, summ_hypo)
         

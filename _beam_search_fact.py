@@ -235,7 +235,10 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     da_embedder = beam_search_model.da_embedder # ganti jadi src embedder
     text_embedder = beam_search_model.text_embedder # ganti jadi text embedder
 
-    results = []
+    pred_results = []
+    src_data = []
+    tgt_data = []
+    
     should_load_beams = save_final_beam_path and os.path.exists(save_final_beam_path) and only_rerank_final
     should_save_beams = save_final_beam_path and not should_load_beams
     
@@ -333,7 +336,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     #     pred_toks = summ_beam_search_model.convert_id_to_text(best_path[1])
     #     # print("BEST")
     #     # print(pred_toks)
-    #     results.append(pred_toks)
+    #     pred_results.append(pred_toks)
     #     save_final_beam_path_toggle = not save_final_beam_path_toggle
 
     #     # This is inefficent but means that will cache
@@ -373,7 +376,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                 continue
             
             j = 0
-            for src, segs, mask_src in zip(batch.src, batch.segs, batch.mask_src):
+            for src, segs, mask_src, tgt in zip(batch.src, batch.segs, batch.mask_src, batch.tgt):
                 if (i == batch_skipped+1 and j < remaining):
                     print("SKIP j: ", (i * batch_size) + j)
                 else:
@@ -444,13 +447,20 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                     # print(best_path)
                     
                     pred_toks = summ_beam_search_model.convert_id_to_text(best_path[1])
+
+                    src_toks = summ_beam_search_model.convert_id_to_text(src[0])
+                    tgt_toks = summ_beam_search_model.convert_id_to_text(tgt)
+
                     # print("BEST")
                     # print(pred_toks)
-                    results.append(pred_toks)
+                    pred_results.append(pred_toks)
+                    src_data.append(src_toks)
+                    tgt_data.append(tgt_toks)
+
                     save_final_beam_path_toggle = not save_final_beam_path_toggle
 
-                    # This is inefficent but means that will cache
-                    if should_save_beams and (i % 100 == 0 or len(final_beams) == len_summ_data):
+                    # TODO fix hack on len, investigate why
+                    if should_save_beams and (i % 100 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
                         print("Saving final beam states at ", save_final_beam_path)
                         if save_final_beam_path_toggle:
                             toggledPath = save_final_beam_path
@@ -469,4 +479,4 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     if recorded_sections:
         print("SECTIONS:", Counter(recorded_sections))
 
-    return results
+    return pred_results, src_data, tgt_data

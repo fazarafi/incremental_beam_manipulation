@@ -9,7 +9,7 @@ from base_models import TGEN_Model, TGEN_Reranker, PairwiseReranker
 from e2e_metrics.metrics.pymteval import BLEUScore
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
 # from get_results_bleu_scores import print_results, test_res_official
-from _get_results_fact_scores import print_results, test_res_official, test_summary_scores
+from _get_results_fact_scores import print_results, test_res_official, test_summary_scores, test_summary_scores_official
 from _beam_search_fact import run_beam_search_with_rescorer, run_nucleus_sampling
 from _scorer_functions_fact import get_score_function, get_score_function_fact
 from utils import get_training_variables, apply_absts, get_abstss_train, get_test_das, \
@@ -64,7 +64,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
     for gred_comp in greedy_complete:
         if gred_comp == ['random']:
             gred_comp = sorted(random.choices(list(range(3, 15)), k=random.randint(1, 4)))
-        preds = run_beam_search_with_rescorer(args, scorer_func, models, das_test, beam_size,
+        preds, srcs, tgts = run_beam_search_with_rescorer(args, scorer_func, models, das_test, beam_size,
                                               only_rerank_final=cfg['only_rerank_final'],
                                               save_final_beam_path=beam_save_path,
                                               greedy_complete=gred_comp,
@@ -80,10 +80,10 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                                               device=args.device,
                                               len_summ_data=len_summ_data)
         print("[DEBUG FT] preds before: ", len(preds))
-        preds = [[x for x in pred if x not in [SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK]] for pred in preds]
+        preds = [[x for x in pred if x not in [SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK]] for pred in preds] # TODO FT evaluate this whether it's okay to use or not
         print("[DEBUG FT] preds AFTER: ", len(preds))
         if "res_save_format" in cfg:
-            save_filename = cfg["res_save_format"].format(cfg['scorer'], beam_size)
+            save_filename = cfg["res_save_format"].format(beam_size)
         elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac']:
             fact_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
             save_filename = "{}-{}-{}-{}-{}.txt".format(cfg['scorer'], fact_cfg["output_type"],
@@ -101,28 +101,47 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         
         else:
             raise ValueError('Not saving files any where')
-        save_filename_update = "-".join([str(x) for x in gred_comp]) + save_filename
+        save_filename_update = "-".join([str(x) for x in gred_comp]) + save_filename + "." + str(len(preds))
         save_path = os.path.join(SUMM_RESULTS_DIR, save_filename_update)
-        if cfg.get("re-lexicalise", True):
-            print("Applying abstract")
-            post_abstr = apply_absts(absts, preds)
-        else:
-            print("Abstract not applied")
-            post_abstr = preds
-        print("Saving to {}".format(save_path))
-        parent = os.path.abspath(os.path.join(save_path, os.pardir))
-        if not os.path.exists(parent):
-            os.makedirs(parent)
-        with open(save_path, "w+", encoding='utf-8') as out_file:
-            for pa in post_abstr:
-                # out_file.write(" ".join(pa) + '\n')
-                if cfg.get("re-lexicalise", True):
-                    out_file.write(postprocess(" ".join(pa)) + '\n')
-                else:
-                    out_file.write(" ".join(pa) + '\n')
+
+        cfg["re-lexicalise"] = False # TODO FT check if re-lexicalise not needed
+
+        # if cfg.get("re-lexicalise", True):
+        #     print("Applying abstract")
+        #     post_abstr = apply_absts(absts, preds)
+        # else:
+        #     print("Abstract not applied")
+        #     post_abstr = preds
         
-        print("Summary Score: ", test_summary_scores(args, save_filename_update, cfg['scorer'], mode='test'))
-        # print("Summary Score: ", test_summary_scores_official(args, save_filename_update, cfg['scorer']))
+        if not(len(preds) == 0):
+            print("Saving to {}".format(save_path))
+            parent = os.path.abspath(os.path.join(save_path, os.pardir))
+            if not os.path.exists(parent):
+                os.makedirs(parent)
+            with open(save_path, "w+", encoding='utf-8') as out_file:
+                for pa in preds:
+                    out_file.write("".join(pa) + '\n')
+                    
+            with open(save_path + '.raw_src', "w+", encoding='utf-8') as out_file_src:
+                for pa in srcs:
+                    out_file_src.write(str(pa) + '\n')
+            
+            with open(save_path + '.gold', "w+", encoding='utf-8') as out_file_tgt:
+                for pa in tgts:
+                    out_file_tgt.write(str(pa) + '\n')
+                    
+            
+            # print("Summary Score: ", test_summary_scores(args, save_filename_update, cfg['scorer'], mode='test'))
+        
+            scorers = ['factcc', 'rouge'] # TODO FT for first step, complete it later
+            complete_scorers = ['factcc', 'rouge', 'summac', 'feqa']
+            test_result = test_summary_scores_official(args, save_filename_update, scorers)
+            print("Summary Score: ", test_result)
+
+            with open(save_path + '.test_result', "w+", encoding='utf-8') as out_file_result:
+                for res in test_result:
+                    out_file_result.write(str(res) + '\n')
+
 
 
 def do_nucleus_sampling(models, das_test, cfg, absts):
@@ -166,7 +185,6 @@ if __name__ == '__main__':
     args.world_size = len(args.gpu_ranks)
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus
 
-    # init_logger(args.log_file) TODO add legger
     device = "cpu" if args.visible_gpus == '-1' else "cuda"
     device_id = 0 if device == "cuda" else -1
 
@@ -257,4 +275,4 @@ if __name__ == '__main__':
             print("Dataset loading time: ", time() - st)
             do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_train_data, len_summ_data)
 
-    print_results(args)
+    # print_results(args)

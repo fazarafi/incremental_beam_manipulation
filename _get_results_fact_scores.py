@@ -36,69 +36,84 @@ def average(lst):
 def load_data(pred_file, ref_file):
     return []
 
-def test_summary_scores_official(args, pred_file_name, scorer):
+def test_summary_scores_official(args, pred_file_name, scorers):
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
 
     pred_file = os.path.join(SUMM_RESULTS_DIR, pred_file_name)
 
     summaries_sys = []
+    summaries_ref = []
+    documents_ref = []
 
-    for paths in pred_file:
-        summaries_sys.append(paths[1])
+    with open(pred_file, "r", encoding="utf-8") as fin1:
+        for line in fin1:
+            summaries_sys.append(line)
 
-    mode = args.use_data
+    with open(pred_file + '.raw_src', "r", encoding="utf-8") as fin2:
+        for line in fin2:
+            summaries_ref.append(line)
+
+    with open(pred_file + '.gold', "r", encoding="utf-8") as fin3:
+        for line in fin3:
+            documents_ref.append(line)
+
+    # for paths in pred_file:
+    #     summaries_sys.append(paths[1])
+
+    # mode = args.use_data
     
-    summ_data = None
-    if mode == 'test':
-        summ_data = data_loader.Dataloader(args, load_dataset(args, 'test', shuffle=False), args.batch_size, args.device, shuffle=False, is_test=True)
-    elif mode == 'valid':
-        summ_data = data_loader.Dataloader(args, load_dataset(args, 'valid', shuffle=False), args.batch_size, args.device, shuffle=False, is_test=True)
-    else:
-        summ_data = data_loader.Dataloader(args, load_dataset(args, 'train', shuffle=False), args.batch_size, args.device, shuffle=False, is_test=True)
+    # summ_data = None
+    # if mode == 'test':
+    #     summ_data = data_loader.Dataloader(args, load_dataset(args, 'test', shuffle=False), args.batch_size, args.device, shuffle=False, is_test=True)
+    # elif mode == 'valid':
+    #     summ_data = data_loader.Dataloader(args, load_dataset(args, 'valid', shuffle=False), args.batch_size, args.device, shuffle=False, is_test=True)
+    # else:
+    #     summ_data = data_loader.Dataloader(args, load_dataset(args, 'train', shuffle=False), args.batch_size, args.device, shuffle=False, is_test=True)
 
-    summaries_ref = list()
-    documents_ref = list()
-    usage_data_for_train = 10000 # TODO FT revise properly
-    counter = 0
-    for batch in summ_data:
-        if mode == 'train' and counter >= usage_data_for_train:
-            break
-        for src in batch.src:
-            documents_ref.append(convert_id_to_text(tokenizer, src))
-        for tgt in batch.tgt:
-            summaries_ref.append(convert_id_to_text(tokenizer, src))
-        counter += len(batch.src)
+    # usage_data_for_train = 10000 # TODO FT revise properly
+    # counter = 0
+    # for batch in summ_data:
+    #     if mode == 'train' and counter >= usage_data_for_train:
+    #         break
+    #     for src in batch.src:
+    #         documents_ref.append(convert_id_to_text(tokenizer, src))
+    #     for tgt in batch.tgt:
+    #         summaries_ref.append(convert_id_to_text(tokenizer, src))
+    #     counter += len(batch.src)
     
-    final_results = list()
-    final_scores = {}
-    final_scores["scorer"] = scorer
-
-    data_length = min(len(documents_ref, summaries_ref, summaries_sys))
+    final_results = []
+    print("len(documents_ref), len(summaries_ref), len(summaries_sys):", len(documents_ref)," ", len(summaries_ref)," ", len(summaries_sys))
+    data_length = min(len(documents_ref), len(summaries_ref), len(summaries_sys))
 
     # equalify all dataset arrays
     documents_ref = documents_ref[:data_length]
     summaries_ref = summaries_ref[:data_length]
     summaries_sys = summaries_sys[:data_length]
 
-    if (scorer=='factcc'):
-        
+    if 'factcc' in scorers:
+        final_scores = {}
         print('TEST WITH FactCC')
         final_scores["scorer"] = 'factcc'
         factcc_scorer = FactccCaller()
         results = factcc_scorer.evaluate_batch(documents_ref, summaries_sys)
         final_scores["raw_scores"] = results
 
+        final_results.append(final_scores)
 
-    elif (scorer=='summac'):
+    if 'summac' in scorers:
         print('TEST WITH SummaC')
+        final_scores = {}
         final_scores["scorer"] = 'summac'
         f1, scores = summac_evaluate_batch(documents_ref, summaries_sys)
-        final_scores["raw_scores"] = scores
         final_scores["f1_score"] = f1
+        final_scores["raw_scores"] = scores
+        
+        final_results.append(final_scores)
 
-    elif (scorer=='feqa'):
+    if 'feqa' in scorers:
         print('TEST WITH FEQA')
+        final_scores = {}
         final_scores["scorer"] = 'feqa'
         model = FEQA(use_gpu=True)
         # scores = model.compute_score(documents_ref, summaries_ref, aggregate=False)
@@ -106,19 +121,21 @@ def test_summary_scores_official(args, pred_file_name, scorer):
         # final_scores["average"] = average            
         agg_score = model.compute_score(documents_ref, summaries_sys, aggregate=True)
         final_scores["raw_scores"] = agg_score
+
+        final_results.append(final_scores)
         
 
-    elif (scorer=='rouge'):
+    if 'rouge' in scorers:
         print('TEST WITH ROUGE')
+        final_scores = {}
         final_scores["scorer"] = 'rouge'
         rouge = Rouge()
         scores = rouge.get_scores(summaries_sys, summaries_ref, avg=True)
         final_scores["raw_scores"] = scores
+        
+        final_results.append(final_scores)
 
-    else:
-        print('Test module is not recognized.')
-
-    return final_scores
+    return final_results
 
 # TODO FT remove below if above works
 def test_summary_scores(args, pred_file_name, scorer, mode, pred_mode=None):
