@@ -56,7 +56,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
     if "non_greedy_scorer" in cfg:
         non_greedy_score_func = get_score_function_fact(args, cfg['non_greedy_scorer'], cfg, models, true_vals, beam_size, alpha)
     if "greedy_complete_at" in cfg:
-        greedy_complete = cfg["xxx"]
+        greedy_complete = cfg["greedy_complete_at"]
     else:
         greedy_complete_rate = cfg.get("greedy_complete_rate", max_pred_len + 1)
         greedy_complete = [list(range(greedy_complete_rate, max_pred_len, greedy_complete_rate))]
