@@ -86,7 +86,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
             save_filename = cfg["res_save_format"].format(beam_size)
         elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac']:
             fact_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
-            save_filename = "{}-{}-{}-{}-{}.txt".format(cfg['scorer'], fact_cfg["output_type"],
+            save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], fact_cfg["output_type"],
                                                         fact_cfg["logprob_preprocess_type"],
                                                         fact_cfg['beam_size'], beam_size)
             save_filename = cfg.get("save_prefix", "") + save_filename
@@ -94,7 +94,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         elif cfg['scorer'] in ['surrogate', 'greedy_decode_surrogate', 'surrogate_rev']:
             # Example surrogate-regression_reranker_relative-categorical_order_10_10.txt
             surrogate_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
-            save_filename = "{}-{}-{}-{}-{}.txt".format(cfg['scorer'], surrogate_cfg["output_type"],
+            save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], surrogate_cfg["output_type"],
                                                         surrogate_cfg["logprob_preprocess_type"],
                                                         surrogate_cfg['beam_size'], beam_size)
             save_filename = cfg.get("save_prefix", "") + save_filename
