@@ -2,16 +2,16 @@ import random
 import numpy as np
 from keras.utils import to_categorical
 
-from base_models import TGEN_Reranker, TrainableReranker
 from e2e_metrics.metrics.pymteval import BLEUScore
-from utils import START_TOK, END_TOK, PAD_TOK, get_features
+from utils import START_TOK, END_TOK, PAD_TOK, get_features, SUMM_PAD_TOK
+
+from _base_models_fact import TGEN_Reranker, TrainableReranker, SummaryFactTrainableReranker
 
 from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls
 from pytorch_transformers import BertTokenizer
 
 from time import time 
-
 
 def get_regressor_score_func(regressor, text_embedder, w2v):
     def func(path, logprob, da_emb, da_i, beam_size, docs):
@@ -20,7 +20,6 @@ def get_regressor_score_func(regressor, text_embedder, w2v):
         return regressor_score
 
     return func
-
 
 def get_tgen_rerank_score_func(tgen_reranker):
     def func(path, logprob, da_emb, da_i, enc_outs):
@@ -162,6 +161,51 @@ def get_score_function(scorer, cfg, models, true_vals, beam_size, alpha=0.65):
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))
 
+def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_order=False, summ_symbols=None, len_summ=None, len_docs=None):
+    def func(path, logprob, da_emb, da_i, beam_size, docs):
+        summ_emb = path[1]
+        pads = [summ_symbols[SUMM_PAD_TOK]] * \
+               (len_summ - len(summ_emb))
+        if trainable_reranker.logprob_preprocess_type == 'categorical_order':
+            logprob_rank = logprob * trainable_reranker.beam_size // beam_size
+            logprob_val = to_categorical([logprob_rank], num_classes=trainable_reranker.beam_size)
+        else:
+            logprob_val = [path[0]]
+
+        summ_seqs = [pads + summ_emb.cpu().tolist()]
+        summ_seqs = [summ_seqs[0][:len_summ]]
+
+        docs_emb = docs[0].cpu().tolist()
+        docs_pads = [summ_symbols[SUMM_PAD_TOK]] * \
+               (len_docs - len(docs_emb))
+        docs_seqs = [docs_pads + docs_emb]
+        docs_seqs = [docs_seqs[0][:len_docs]]
+
+        pred = trainable_reranker.predict_fact_score(
+            np.array(summ_seqs),
+            np.array(docs_seqs),
+            np.array(logprob_val))
+
+        if trainable_reranker.output_type in ["regression_ranker", "regression_reranker_relative"]:
+            return 1 - pred[0][0]
+        elif trainable_reranker.output_type in ["regression_sections"]:
+            if reverse_order:
+                return -pred[0][0], path[0]
+            return pred[0][0], path[0]
+        elif trainable_reranker.output_type in ["binary_classif"]:
+            pred = 1 if pred[0][0] > 0.5 else 0
+            return 1 - pred, path[0]
+
+        if select_max:
+            max_pred = np.argmax(pred[0])
+            return 10 - max_pred, pred[0][0]
+        elif reverse_order:
+            return -pred[0][0]
+        else:
+            return pred[0][0]
+
+    return func
+
 
 def convert_id_to_text(tokenizer, token_ids):
     # Convert token_ids to text for factual consistency scoring
@@ -175,7 +219,7 @@ def convert_id_to_text(tokenizer, token_ids):
 def get_factcc_score_function(scorer, tokenizer):
     def func(path, logprob, da_emb, da_i, beam_size, docs):
         docs = convert_id_to_text(tokenizer, docs[0])
-        summ_hypo = convert_id_to_text(tokenizer, path)
+        summ_hypo = convert_id_to_text(tokenizer, path[1])
         score = scorer.classify(docs, summ_hypo)
         
         return score
@@ -185,7 +229,7 @@ def get_factcc_score_function(scorer, tokenizer):
 def get_summac_score_function(tokenizer):
     def func(path, logprob, da_emb, da_i, beam_size, docs):    
         docs = convert_id_to_text(tokenizer, docs[0])
-        summ_hypo = convert_id_to_text(tokenizer, path)
+        summ_hypo = convert_id_to_text(tokenizer, path[1])
 
         start = time()
         score = summac_cls(docs, summ_hypo)
@@ -198,7 +242,7 @@ def get_summac_score_function(tokenizer):
 def get_mixed_fact_score_function(fact_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
     def func(path, logprob, da_emb, da_i, beam_size, docs):    
         docs = convert_id_to_text(tokenizer, docs[0])
-        summ_hypo = convert_id_to_text(tokenizer, path)
+        summ_hypo = convert_id_to_text(tokenizer, path[1])
         
         start = time()
         summac_score = summac_cls(docs, summ_hypo)
@@ -216,11 +260,13 @@ def get_mixed_fact_score_function(fact_scorer, tokenizer, w1, w2): # TODO FT use
 
     return func
 
-def get_score_function_fact(args, scorer, summ_data, true_summ, cfg, beam_size, alpha=0.65):
+def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, alpha=0.65, summary_embedder=None, document_embedder=None):
     print("Using Scorer: {}".format(scorer))
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
-    
+    symbols = {'BOS': tokenizer.vocab['[unused0]'], 'EOS': tokenizer.vocab['[unused1]'],
+            'PAD': tokenizer.vocab['[PAD]'], 'EOQ': tokenizer.vocab['[unused2]']}
+
     # convert docs and hypo to text
     if scorer == "factcc":
         factcc = FactccCaller()
@@ -232,5 +278,14 @@ def get_score_function_fact(args, scorer, summ_data, true_summ, cfg, beam_size, 
         return get_mixed_fact_score_function(factcc, tokenizer, args.w1, args.w2)
     elif scorer == "weighted_fact":
         print("TODO")
+    elif scorer == "surrogate_fact":
+        learned = SummaryFactTrainableReranker(summary_embedder, document_embedder, cfg['trainable_reranker_config'], tokenizer=tokenizer)
+        learned.load_model()
+        select_max = cfg.get("order_by_max_class", False)
+        reverse_order = scorer == 'surrogate_rev'
+
+        len_summ = max([len(x[0]) for x in summary_embedder])
+        len_docs = max([len(x[0]) for x in document_embedder])
+        return get_learned_fact_score_func(learned, select_max, reverse_order, symbols, len_summ, len_docs)
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))

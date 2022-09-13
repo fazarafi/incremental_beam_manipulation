@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 MAX_LEN = 150
 
-def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_data, len_summ_data):
+def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder):
     print("Beam size = {} ".format(beam_size))
     beam_save_path = cfg.get('beam_save_path', '')
     if beam_save_path:
@@ -49,7 +49,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
     if "train_reranker" in cfg and cfg["train_reranker"]["output_type"] in ["pair"]:
         scorer_func = PairwiseReranker(da_embedder, text_embedder, cfg["trainable_reranker_config"])
     else:
-        scorer_func = get_score_function_fact(args, cfg['scorer'], cfg, models, true_vals, beam_size, alpha)
+        scorer_func = get_score_function_fact(args, cfg['scorer'], cfg, models, true_vals, beam_size, alpha, summary_embedder, document_embedder)
     max_pred_len = MAX_LEN
 
     non_greedy_score_func = None
@@ -91,7 +91,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                                                         fact_cfg['beam_size'], beam_size)
             save_filename = cfg.get("save_prefix", "") + save_filename
         
-        elif cfg['scorer'] in ['surrogate', 'greedy_decode_surrogate', 'surrogate_rev']:
+        elif cfg['scorer'] in ['surrogate', 'greedy_decode_surrogate', 'surrogate_rev', 'surrogate_fact']:
             # Example surrogate-regression_reranker_relative-categorical_order_10_10.txt
             surrogate_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
             save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], surrogate_cfg["output_type"],
@@ -235,8 +235,13 @@ if __name__ == '__main__':
     
     print("Counting dataset length...")
 
+    document_embedder = []
+    summary_embedder = []
     for batch in summ_train_data:
         len_summ_data += len(batch.src)
+        document_embedder.append(batch.src)
+        summary_embedder.append(batch.tgt)
+    
         
         # train_docs.append(batch.src)
         # train_segs.append(batch.segs)
@@ -244,7 +249,6 @@ if __name__ == '__main__':
         # train_summ.append(batch.tgt)
 
     print("Total data: ", len_summ_data)
-
 
     # training_vals = list(zip(train_docs, train_segs, train_mask_src, train_summ))
     # print("Loading summary dataset done")
@@ -273,6 +277,6 @@ if __name__ == '__main__':
                                         args.batch_size, device, 
                                         shuffle=False, is_test=False)
             print("Dataset loading time: ", time() - st)
-            do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_train_data, len_summ_data)
+            do_beam_search_fact(args, beam_size, cfg, models, das_test, document_embedder, summary_embedder, true_vals, absts, summ_model, summ_train_data, len_summ_data, document_embedder, summary_embedder)
 
     # print_results(args)

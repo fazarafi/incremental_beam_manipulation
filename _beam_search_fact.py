@@ -54,7 +54,7 @@ def score_beams_fact(rescorer, beam, da_emb, i, docs):
         # lp_pos = sum([1 for lp in logprobs if lp > path[0] + 0.000001])
         lp_pos = 0
 
-        hyp_score = rescorer(path[1], lp_pos, da_emb, i, len(beam), docs)
+        hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs)
         path_scores.append((hyp_score, path))
     return path_scores
 
@@ -178,7 +178,6 @@ def _run_beam_search_with_rescorer(args, i, da_emb, paths, enc_outs, beam_size, 
         # randomize whether we use scoring or not
         if (random.randint(0,9) % 2):
             if step in greedy_complete and rescorer is not None:
-                print("greedy_complete")
                 summ_paths = order_beam_after_greedy_complete(rescorer, new_paths, da_emb, i, enc_outs, seq2seq, max_pred_len,
                                                         cfg, length_norm_alpha, 
                                                         summ_data=summ_data, summ_model=summ_model, summ_enc_outs=summ_enc_outs, beam_size=beam_size)
@@ -239,6 +238,10 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     src_data = []
     tgt_data = []
     
+    should_skip_beam = False
+    if "should_skip_beam" in cfg:
+        should_skip_beam = cfg["should_skip_beam"]
+
     should_load_beams = save_final_beam_path and os.path.exists(save_final_beam_path) and only_rerank_final
     should_save_beams = save_final_beam_path and not should_load_beams
     
@@ -371,103 +374,103 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                 remaining = len(final_beams) % batch_size
                 counted = True
 
-            # if i <= batch_skipped:
-            #     i += 1 # TODO FT revamp this hack
-            #     continue
+            if should_skip_beam and i <= batch_skipped:
+                i += 1 # TODO FT revamp this hack
+                continue
             
             j = 0
             for src, segs, mask_src, tgt in zip(batch.src, batch.segs, batch.mask_src, batch.tgt):
-                # if (i == batch_skipped+1 and j < remaining):
-                #     print("SKIP j: ", (i * batch_size) + j)
-                # else:
-                print("Process summ_data: ke-", (i * batch_size) + j)
-
-                src = src.view(1, -1)
-                segs = segs.view(1, -1)
-                mask_src = mask_src.view(1, -1)
-                
-                if save_progress_file:
-                    save_progress_file.write("Test {}\n".format(i))
-
-                summ_enc_outs = summ_beam_search_model.encode_batch(src, segs, mask_src)
-                
-                # inf_enc_out = beam_search_model.encoder_model.predict(np.array([da_emb]))
-                # enc_outs = inf_enc_out[0]
-                # enc_last_state = inf_enc_out[1:]
-                # paths = [(log(1.0), text_embedder.start_emb, enc_last_state)]
-                
-                summ_enc_out = summ_enc_outs[0]
-                summ_enc_last_state = summ_enc_outs[1:]
-                summ_paths = [(
-                    log(1.0),
-                    torch.tensor(
-                        [summ_beam_search_model.start_token],
-                        dtype=torch.long,
-                        device=args.device
-                    ),
-                    summ_enc_last_state
-                )]
-                    
-                if should_load_beams:
-                    paths = load_final_beams[(i * batch_size) + j]
+                if (should_skip_beam and i == batch_skipped+1 and j < remaining):
+                    print("SKIP j: ", (i * batch_size) + j)
                 else:
-                    paths = _run_beam_search_with_rescorer(
-                        args, 
-                        i=i,
-                        da_emb=None,
-                        paths=None,
-                        enc_outs=None,
-                        beam_size=beam_size,
-                        max_pred_len=max_pred_len,
-                        seq2seq=beam_search_model,
-                        rescorer=scorer if not only_rerank_final else None,
-                        greedy_complete=greedy_complete,
-                        save_progress_file=save_progress_file,
-                        cfg=cfg,
-                        non_greedy_rescorer=non_greedy_rescorer,
-                        length_norm_alpha=length_norm_alpha,
-                        summ_model=summ_beam_search_model,
-                        summ_data=src,
-                        summ_enc_outs=summ_enc_outs,
-                        summ_paths=summ_paths
-                    )
+                    print("Process summ_data: ke-", (i * batch_size) + j)
 
-                final_beams.append(paths)
-
-                if only_rerank_final or also_rerank_final:
-                    paths = order_beam_acording_to_rescorer(scorer, paths, None, i, cfg, summ_data=src)
+                    src = src.view(1, -1)
+                    segs = segs.view(1, -1)
+                    mask_src = mask_src.view(1, -1)
                     
-                # A hack to handle the what we need right now - this should be updated
-                elif non_greedy_rescorer:
-                    # TODO FT PARTIAL
-                    paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, None, i, cfg, ignore_flags=True, summ_data=src)
+                    if save_progress_file:
+                        save_progress_file.write("Test {}\n".format(i))
 
-                best_path = paths[0]
-                
-                # print(best_path)
-                
-                pred_toks = summ_beam_search_model.convert_id_to_text(best_path[1])
-
-                src_toks = summ_beam_search_model.convert_id_to_text(src[0])
-                tgt_toks = summ_beam_search_model.convert_id_to_text(tgt)
-
-                # print("BEST")
-                # print(pred_toks)
-                pred_results.append(pred_toks)
-                src_data.append(src_toks)
-                tgt_data.append(tgt_toks)
-
-                save_final_beam_path_toggle = not save_final_beam_path_toggle
-
-                # TODO fix hack on len, investigate why
-                if should_save_beams and (i % 100 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
-                    print("Saving final beam states at ", save_final_beam_path)
-                    if save_final_beam_path_toggle:
-                        toggledPath = save_final_beam_path
+                    summ_enc_outs = summ_beam_search_model.encode_batch(src, segs, mask_src)
+                    
+                    # inf_enc_out = beam_search_model.encoder_model.predict(np.array([da_emb]))
+                    # enc_outs = inf_enc_out[0]
+                    # enc_last_state = inf_enc_out[1:]
+                    # paths = [(log(1.0), text_embedder.start_emb, enc_last_state)]
+                    
+                    summ_enc_out = summ_enc_outs[0]
+                    summ_enc_last_state = summ_enc_outs[1:]
+                    summ_paths = [(
+                        log(1.0),
+                        torch.tensor(
+                            [summ_beam_search_model.start_token],
+                            dtype=torch.long,
+                            device=args.device
+                        ),
+                        summ_enc_last_state
+                    )]
+                        
+                    if should_load_beams:
+                        paths = load_final_beams[(i * batch_size) + j]
                     else:
-                        splits = save_final_beam_path.split('.')
-                        toggledPath = splits[0] + '.' + splits[1]
-                    pickle.dump(final_beams, open(toggledPath, "wb+"))
+                        paths = _run_beam_search_with_rescorer(
+                            args, 
+                            i=i,
+                            da_emb=None,
+                            paths=None,
+                            enc_outs=None,
+                            beam_size=beam_size,
+                            max_pred_len=max_pred_len,
+                            seq2seq=beam_search_model,
+                            rescorer=scorer if not only_rerank_final else None,
+                            greedy_complete=greedy_complete,
+                            save_progress_file=save_progress_file,
+                            cfg=cfg,
+                            non_greedy_rescorer=non_greedy_rescorer,
+                            length_norm_alpha=length_norm_alpha,
+                            summ_model=summ_beam_search_model,
+                            summ_data=src,
+                            summ_enc_outs=summ_enc_outs,
+                            summ_paths=summ_paths
+                        )
+
+                    final_beams.append(paths)
+
+                    if only_rerank_final or also_rerank_final:
+                        paths = order_beam_acording_to_rescorer(scorer, paths, None, i, cfg, summ_data=src)
+                        
+                    # A hack to handle the what we need right now - this should be updated
+                    elif non_greedy_rescorer:
+                        # TODO FT PARTIAL
+                        paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, None, i, cfg, ignore_flags=True, summ_data=src)
+
+                    best_path = paths[0]
+                    
+                    # print(best_path)
+                    
+                    pred_toks = summ_beam_search_model.convert_id_to_text(best_path[1])
+
+                    src_toks = summ_beam_search_model.convert_id_to_text(src[0])
+                    tgt_toks = summ_beam_search_model.convert_id_to_text(tgt)
+
+                    # print("BEST")
+                    # print(pred_toks)
+                    pred_results.append(pred_toks)
+                    src_data.append(src_toks)
+                    tgt_data.append(tgt_toks)
+
+                    save_final_beam_path_toggle = not save_final_beam_path_toggle
+
+                    # TODO fix hack on len, investigate why
+                    if should_save_beams and (i % 100 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
+                        print("Saving final beam states at ", save_final_beam_path)
+                        if save_final_beam_path_toggle:
+                            toggledPath = save_final_beam_path
+                        else:
+                            splits = save_final_beam_path.split('.')
+                            toggledPath = splits[0] + '.' + splits[1]
+                        pickle.dump(final_beams, open(toggledPath, "wb+"))
 
                 j += 1
             i += 1
