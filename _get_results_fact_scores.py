@@ -111,9 +111,9 @@ def test_summary_scores_official(args, pred_file_name, scorers):
     
     return final_results
 
-def print_results(args, summ_scorer=None):
-    if summ_scorer == None:
-        summ_scorer = 'rouge'
+def print_results(args, summ_scorers=None):
+    if summ_scorers == None:
+        summ_scorers = ['rouge']
 
     day_seconds = 24 * 60 * 60
     # print(sys.argv)
@@ -132,8 +132,8 @@ def print_results(args, summ_scorer=None):
             filename_bs.append((filter_name, filename, beam_size))
 
     for _, filename, bs in sorted(filename_bs, key=lambda x: (x[0], int(x[2]))):
-        print(filename, bs, test_summary_scores(args, filename, summ_scorer, 'test'))
-        # print(filename, bs, test_summary_scores_official(args, filename, summ_scorer))
+        # print(filename, bs, test_summary_scores(args, filename, summ_scorers, 'test'))
+        print(filename, bs, test_summary_scores_official(args, filename, summ_scorers))
 
 
 if __name__ == "__main__":

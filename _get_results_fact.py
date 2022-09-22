@@ -8,8 +8,7 @@ from pathlib import Path
 from base_models import TGEN_Model, TGEN_Reranker, PairwiseReranker
 from e2e_metrics.metrics.pymteval import BLEUScore
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
-# from get_results_bleu_scores import print_results, test_res_official
-from _get_results_fact_scores import print_results, test_res_official, test_summary_scores, test_summary_scores_official
+from _get_results_fact_scores import print_results, test_summary_scores_official
 from _beam_search_fact import run_beam_search_with_rescorer, run_nucleus_sampling
 from _scorer_functions_fact import get_score_function, get_score_function_fact
 from utils import get_training_variables, apply_absts, get_abstss_train, get_test_das, \
@@ -171,12 +170,12 @@ def do_nucleus_sampling(models, das_test, cfg, absts):
                 out_file.write(postprocess(" ".join(pa)) + '\n')
             else:
                 out_file.write(" ".join(pa) + '\n')
-    # print("Official bleu score:", test_res_official(save_filename))
     print("Fact score:", test_summary_scores(save_filename, 'factcc', 'test'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', default=None)
+    parser.add_argument('-should_skip_beam', default=False)
     parser = get_args_presumm(parser)
     args = parser.parse_args()
 

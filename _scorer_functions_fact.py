@@ -14,7 +14,7 @@ from pytorch_transformers import BertTokenizer
 from time import time 
 
 def get_regressor_score_func(regressor, text_embedder, w2v):
-    def func(path, logprob, da_emb, da_i, beam_size, docs):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         features = get_features(path, text_embedder, w2v, logprob)
         regressor_score = regressor.predict(features.reshape(1, -1))[0][0]
         return regressor_score
@@ -35,7 +35,7 @@ def get_tgen_rerank_score_func(tgen_reranker):
 
 
 def get_identity_score_func():
-    def func(path, logprob, da_emb, da_i, beam_size, docs):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         return path[0]
 
     return func
@@ -56,7 +56,7 @@ def get_power(num, power):
 
 
 def get_length_normalised_score_func(alpha):
-    def func(path, logprob, da_emb, da_i, beam_size, docs):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         return path[0] / get_power(len(path[1]), alpha)
 
     return func
@@ -75,7 +75,7 @@ def get_length_normalised_score_func(alpha):
 
 
 def get_oracle_score_func(bleu, true_vals, text_embedder, reverse):
-    def func(path, logprob, da_emb, da_i, beam_size, docs):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         true = true_vals[da_i]
         toks = text_embedder.reverse_embedding(path[1])
         pred = [x for x in toks if x not in [START_TOK, END_TOK, PAD_TOK]]
@@ -91,14 +91,14 @@ def get_oracle_score_func(bleu, true_vals, text_embedder, reverse):
 
 
 def get_random_score_func():
-    def func(path, logprob, da_emb, da_i, beam_size, docs):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         return random.random()
 
     return func
 
 
 def get_learned_score_func(trainable_reranker, select_max=False, reverse_order=False):
-    def func(path, logprob, da_emb, da_i, beam_size, docs):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         text_emb = path[1]
         pads = [trainable_reranker.text_embedder.tok_to_embed[PAD_TOK]] * \
                (trainable_reranker.text_embedder.length - len(text_emb))
@@ -162,7 +162,7 @@ def get_score_function(scorer, cfg, models, true_vals, beam_size, alpha=0.65):
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))
 
 def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_order=False, summ_symbols=None, len_summ=None, len_docs=None):
-    def func(path, logprob, da_emb, da_i, beam_size, docs):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         summ_emb = path[1]
         pads = [summ_symbols[SUMM_PAD_TOK]] * \
                (len_summ - len(summ_emb))
@@ -217,7 +217,7 @@ def convert_id_to_text(tokenizer, token_ids):
 
 
 def get_factcc_score_function(scorer, tokenizer):
-    def func(path, logprob, da_emb, da_i, beam_size, docs):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         docs = convert_id_to_text(tokenizer, docs[0])
         summ_hypo = convert_id_to_text(tokenizer, path[1])
         score = scorer.classify(docs, summ_hypo)
@@ -227,7 +227,7 @@ def get_factcc_score_function(scorer, tokenizer):
     return func
 
 def get_summac_score_function(tokenizer):
-    def func(path, logprob, da_emb, da_i, beam_size, docs):    
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
         docs = convert_id_to_text(tokenizer, docs[0])
         summ_hypo = convert_id_to_text(tokenizer, path[1])
 
@@ -240,7 +240,7 @@ def get_summac_score_function(tokenizer):
     return func
 
 def get_mixed_fact_score_function(fact_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
-    def func(path, logprob, da_emb, da_i, beam_size, docs):    
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
         docs = convert_id_to_text(tokenizer, docs[0])
         summ_hypo = convert_id_to_text(tokenizer, path[1])
         

@@ -238,10 +238,8 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     src_data = []
     tgt_data = []
     
-    should_skip_beam = False
-    if "should_skip_beam" in cfg:
-        should_skip_beam = cfg["should_skip_beam"]
-
+    should_skip_beam = args.should_skip_beam
+    
     should_load_beams = save_final_beam_path and os.path.exists(save_final_beam_path) and only_rerank_final
     should_save_beams = save_final_beam_path and not should_load_beams
     
@@ -406,7 +404,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                         torch.tensor(
                             [summ_beam_search_model.start_token],
                             dtype=torch.long,
-                            device=args.device
+                            device=device
                         ),
                         summ_enc_last_state
                     )]

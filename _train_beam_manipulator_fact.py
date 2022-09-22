@@ -295,6 +295,7 @@ parser = argparse.ArgumentParser()
 parser = get_args_presumm(parser)
 
 parser.add_argument('-c', default=None)
+parser.add_argument('-should_skip_beam', default=False)
 args = parser.parse_args()
 
 
