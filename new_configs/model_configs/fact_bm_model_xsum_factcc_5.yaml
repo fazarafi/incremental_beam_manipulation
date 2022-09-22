@@ -12,8 +12,7 @@ show_reranker_post_training_stats: false
 train: true
 output_type: 'fact'
 logprob_preprocess_type: 'categorical_order'
-# beam_size: 30
-beam_size: 10
+beam_size: 5
 dropout: 0.0
 too_close_limit: 0.01
 num_ranks: 4
@@ -24,7 +23,7 @@ only_bottom: true
 loss_function: 'absolute_error'
 # reranker_loc: 'models/bm'
 reranker_loc: 'models/fact_bm'
-beam_save_path: "output_files/saved_beams/fact_factcc_test_10_ns_1.pickle" # anggap gaada
+beam_save_path: "output_files/saved_beams/xsum_fact_factcc_full_factcc_train_5.pickle"
 
 scorer: 'factcc'
 

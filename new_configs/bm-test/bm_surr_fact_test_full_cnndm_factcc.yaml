@@ -1,0 +1,21 @@
+tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
+fact_config: ""
+trainable_reranker_config:
+  "new_configs/model_configs/fact_bm_model_cnndm_full_factcc_5.yaml"
+  # "new_configs/model_configs/fact_bm_model_cnndm_val_factcc_{}.yaml"
+scorer: 'surrogate_fact'
+beam_sizes:
+    # - 3
+    - 5
+    - 10
+    - 15
+only_rerank_final: false
+greedy_complete_at:
+  # - - 3
+  - - 5
+    - 10
+    - 15 
+coarse_ranker: true
+also_rerank_final: false
+save_prefix: ""
+summary_dataset: "test-cnndm-full-5"

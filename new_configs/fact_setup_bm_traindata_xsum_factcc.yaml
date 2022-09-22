@@ -9,6 +9,6 @@ beam_sizes:
   - 10
   - 20
 only_rerank_final: false
-beam_save_path: "output_files/saved_beams/xsum_fact_factcc_full_{}_train_vanilla_{}.pickle"
+beam_save_path: "output_files/saved_beams/xsum_fact_factcc_full_{}_train_{}.pickle"
 get_train_beam: true
-save_progress_file: "output_files/saved_beams/xsum_fact_factcc_full_progress_{}_train_vanilla_{}.pickle"
+save_progress_file: "output_files/saved_beams/xsum_fact_factcc_full_progress_train_{}.pickle"

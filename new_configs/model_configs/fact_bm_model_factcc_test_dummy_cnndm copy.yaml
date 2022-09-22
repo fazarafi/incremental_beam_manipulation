@@ -26,8 +26,8 @@ only_top: false
 only_bottom: true
 loss_function: 'absolute_error'
 # reranker_loc: 'models/fact-bm'
-reranker_loc: 'models/fact-bm-xsum-factcc'
-beam_save_path: "output_files/saved_beams/xsum_fact_factcc_full_factcc_train_vanilla_5.pickle" # yg pendek
+reranker_loc: 'models/fact-bm-cnndm-factcc'
+beam_save_path: "output_files/saved_beams/cnndm_148_fact_factcc_full_factcc_train_vanilla_5_1.pickle" # yg pendek
 # beam_save_path: "output_files/saved_beams/fact_factcc_test_20_ns_1_dummy.pickle"
 
 scorer: 'factcc'

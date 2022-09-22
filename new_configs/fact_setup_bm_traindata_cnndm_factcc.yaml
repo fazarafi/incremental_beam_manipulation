@@ -11,4 +11,4 @@ beam_sizes:
 only_rerank_final: false
 beam_save_path: "output_files/saved_beams/cnndm_fact_factcc_full_{}_train_vanilla_{}.pickle"
 get_train_beam: true
-save_progress_file: "output_files/saved_beams/cnndm_fact_factcc_full_progress_{}_train_vanilla_{}.pickle"
+save_progress_file: "output_files/saved_beams/cnndm_fact_factcc_full_progress_train_vanilla_{}.pickle"
