@@ -8,14 +8,16 @@ deprecation._PRINT_DEPRECATION_WARNINGS = False
 
 import h5py
 import nltk
-from keras.engine.saving import load_weights_from_hdf5_group
+# from keras.engine.saving import load_weights_from_hdf5_group
+from tensorflow.python.keras import saving
+
 import numpy as np
 import json
 
 sys.path.append(os.path.join(os.getcwd(), 'tgen'))
 from enum import Enum
-from tgen.futil import read_das
-from tgen.futil import smart_load_absts
+# from tgen.futil import read_das
+# from tgen.futil import "smart_load_absts"
 from regex import Regex, UNICODE, IGNORECASE
 
 import time
@@ -168,9 +170,9 @@ def apply_absts(absts, texts):
 def get_training_das_texts():
     if DATASET_WEBNLG:
         return get_das_texts_from_webnlg('WebNLG_Reader/data/webnlg/train.json')
-    das = read_das("tgen/e2e-challenge/input/train-das.txt")
-    texts = [[START_TOK] + x + [END_TOK] for x in get_texts_training()]
-    return das, texts
+    # das = read_das("tgen/e2e-challenge/input/train-das.txt")
+    # texts = [[START_TOK] + x + [END_TOK] for x in get_texts_training()]
+    # return das, texts
 
 
 def safe_get_w2v(w2v, tok):
@@ -192,9 +194,9 @@ def get_training_variables():
     if DATASET_WEBNLG:
         das,texts = get_das_texts_from_webnlg('WebNLG_Reader/data/webnlg/train.json')
         return texts,das
-    das = read_das("tgen/e2e-challenge/input/train-das.txt")
-    texts = [[START_TOK] + x + [END_TOK] for x in get_texts_training()]
-    return texts, das
+    # das = read_das("tgen/e2e-challenge/input/train-das.txt")
+    # texts = [[START_TOK] + x + [END_TOK] for x in get_texts_training()]
+    # return texts, das
 
 
 def get_multi_reference_training_variables():
@@ -225,12 +227,12 @@ def get_test_das():
     else:
         das_file = "tgen/e2e-challenge/input/test-das.txt"
 
-    das = read_das(das_file)
-    return das
+    # das = read_das(das_file)
+    return ""
 
 
 def get_abstss_train():
-    return smart_load_absts('tgen/e2e-challenge/input/train-abst.txt')
+    return "smart_load_absts('tgen/e2e-challenge/input/train-abst.txt')"
 
 
 def get_abstss_test():
@@ -239,7 +241,7 @@ def get_abstss_test():
     else:
         absts_file = 'tgen/e2e-challenge/input/test-abst.txt'
 
-    return smart_load_absts(absts_file)
+    return "smart_load_absts(absts_file)"
 
 
 def get_final_beam(beam_size, train=False):
@@ -264,7 +266,10 @@ def get_final_beam(beam_size, train=False):
 
 def load_model_from_gpu(model, filepath):
     f = h5py.File(filepath, mode='r')
-    load_weights_from_hdf5_group(f['model_weights'], model.layers)
+    # load_weights_from_hdf5_group(f['model_weights'], model.layers)
+
+    saving.hdf5_format.load_weights_from_hdf5_group_by_name(f['model_weights'], model.layers)
+    saving.hdf5_format.load_weights_from_hdf5_group(f['model_weights'], model.layers)
 
 
 def get_features(path, text_embedder, w2v, tok_prob):

@@ -14,10 +14,10 @@ from keras.losses import mean_squared_error, logcosh
 
 from tensorflow.test import is_gpu_available
 import keras.backend as K
-from tensorflow.python.keras.optimizers import Adam, SGD
-from tensorflow.python.keras.utils import to_categorical
-from tensorflow.python.keras.models import Model, load_model
-from tensorflow.python.keras.layers import LSTM, TimeDistributed, Dense, Concatenate, Input, Embedding, CuDNNLSTM, \
+from tensorflow.keras.optimizers import Adam, SGD
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.layers import LSTM, TimeDistributed, Dense, Concatenate, Input, Embedding, \
     Dropout
 from tqdm import tqdm
 
@@ -141,7 +141,7 @@ class SummaryFactTrainableReranker(object):
         # len_sentdocs = self.document_embedder.sentence_length
 
         # still use lstm?
-        lstm_type = CuDNNLSTM if is_gpu_available() else LSTM
+        lstm_type = LSTM if is_gpu_available() else LSTM
 
         
         summ_inputs = Input(shape=(len_summ,), name='summ_inputs')
@@ -371,7 +371,7 @@ class PairwiseReranker(object):
         len_da = self.da_embedder.length
         len_vda = self.da_embedder.vocab_length
 
-        lstm_type = CuDNNLSTM if is_gpu_available() else LSTM
+        lstm_type = LSTM if is_gpu_available() else LSTM
 
         text_inputs_1 = Input(shape=(len_text,), name='text_inputs')
         da_inputs_1 = Input(shape=(len_da,), name='da_inputs')
@@ -630,7 +630,7 @@ class TrainableReranker(object):
         print("LEN TEXT TrainableReranker: ",len_text," ", len_vtext)
         print("LEN DA TrainableReranker: ",len_da," ", len_vda)
 
-        lstm_type = CuDNNLSTM if is_gpu_available() else LSTM
+        lstm_type = LSTM if is_gpu_available() else LSTM
 
         text_inputs = Input(shape=(len_text,), name='text_inputs')
         da_inputs = Input(shape=(len_da,), name='da_inputs')
@@ -827,7 +827,7 @@ class TGEN_Reranker(object):
         self.set_up_models(text_embedder.length, text_embedder.vocab_length, da_embedder.inclusion_length)
 
     def set_up_models(self, len_in, vsize_in, len_out):
-        lstm_type = CuDNNLSTM if is_gpu_available() else LSTM
+        lstm_type = LSTM if is_gpu_available() else LSTM
         encoder_inputs = Input(shape=(len_in,), name='encoder_inputs')
 
         embed_enc = Embedding(input_dim=vsize_in, output_dim=self.embedding_size)
@@ -1206,7 +1206,7 @@ class TGEN_Model(object):
         vsize_out = self.text_embedder.vocab_length
         print('In Vocab Size = ', vsize_in)
         print('Out Vocab Size = ', vsize_out)
-        lstm_type = CuDNNLSTM if is_gpu_available() else LSTM
+        lstm_type = LSTM if is_gpu_available() else LSTM
         encoder_inputs = Input(batch_shape=(self.batch_size, len_in), name='encoder_inputs')
         decoder_inputs = Input(batch_shape=(self.batch_size, len_out - 1), name='decoder_inputs')
 

@@ -5,7 +5,7 @@ import sys
 import yaml
 from pathlib import Path
 
-from base_models import TGEN_Model, TGEN_Reranker, PairwiseReranker
+from _base_models_fact import TGEN_Model, TGEN_Reranker, PairwiseReranker
 from e2e_metrics.metrics.pymteval import BLEUScore
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
 from _get_results_fact_scores import print_results, test_summary_scores_official
@@ -204,27 +204,12 @@ if __name__ == '__main__':
     [print("\t{}: {}".format(k, v)) for k, v in cfg.items()]
     print("*******")
 
-    texts, das = get_training_variables()
-    text_embedder = TokEmbeddingSeq2SeqExtractor(texts)
-    da_embedder = DAEmbeddingSeq2SeqExtractor(das)
-
-    das_test = get_test_das()
-    if "get_train_beam" in cfg and cfg["get_train_beam"]:
-        _, das_test = get_multi_reference_training_variables()
-
-    true_vals = get_true_sents()
-    models = TGEN_Model(da_embedder, text_embedder, cfg['tgen_seq2seq_config'])
-    models.load_models()
-
-    
-    
     # len_summ_data = 11273 for xsum
     len_summ_data = 0
     summ_train_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
                                         args.batch_size, device,
                                         shuffle=False, is_test=False)
 
-    
     # Wrap summarization training set
     
     # train_docs = []
@@ -276,6 +261,6 @@ if __name__ == '__main__':
                                         args.batch_size, device, 
                                         shuffle=False, is_test=False)
             print("Dataset loading time: ", time() - st)
-            do_beam_search_fact(args, beam_size, cfg, models, das_test, document_embedder, summary_embedder, true_vals, absts, summ_model, summ_train_data, len_summ_data, document_embedder, summary_embedder)
+            do_beam_search_fact(args, beam_size, cfg, None, None, None, None, None, None, summ_model, summ_train_data, len_summ_data, document_embedder, summary_embedder)
 
     # print_results(args)

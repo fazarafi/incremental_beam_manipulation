@@ -4,11 +4,8 @@ import sys
 import time
 import argparse
 
-from e2e_metrics.metrics.pymteval import BLEUScore
-from e2e_metrics.measure_scores import load_data
 from utils import RESULTS_DIR, VALIDATION_NOT_TEST, DATASET_WEBNLG, \
     get_args_presumm, convert_id_to_text, SUMM_RESULTS_DIR, get_timestamp_file
-
 
 from pytorch_transformers import BertTokenizer
 import torch
@@ -28,9 +25,6 @@ from feqa import FEQA
 
 def average(lst):
     return sum(lst) / len(lst)
-
-def load_data(pred_file, ref_file):
-    return []
 
 def test_summary_scores_official(args, pred_file_name, scorers):
 

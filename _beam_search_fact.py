@@ -22,10 +22,10 @@ from keras.optimizers import RMSprop
 from keras.utils import to_categorical
 from tqdm import tqdm
 
-from base_models import TGEN_Model, Regressor
+from _base_models_fact import TGEN_Model, Regressor
 from e2e_metrics.metrics.pymteval import BLEUScore
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
-from scorer_functions import get_identity_score_func
+from _scorer_functions_fact import get_identity_score_func
 from utils import get_texts_training, RERANK, get_training_das_texts, safe_get_w2v, apply_absts, PAD_TOK, END_TOK, \
     START_TOK, get_section_cutoffs, get_section_value, get_regression_vals, get_timestamp_file
 
@@ -38,15 +38,6 @@ MAX_LEN = 150
 
 SUMM_END_TOKENS = ['EOS', 2]
  
-def score_beams(rescorer, beam, da_emb, i):
-    path_scores = []
-    logprobs = [x[0] for x in beam]
-    for path in beam:
-        lp_pos = sum([1 for lp in logprobs if lp > path[0] + 0.000001])
-        hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam))
-        path_scores.append((hyp_score, path))
-    return path_scores
-
 def score_beams_fact(rescorer, beam, da_emb, i, docs):
     path_scores = []
     logprobs = [x[0] for x in beam]
@@ -230,9 +221,6 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     docs_embedder = ""
     docs_data = []
     summ_embedder = ""
-
-    da_embedder = beam_search_model.da_embedder # ganti jadi src embedder
-    text_embedder = beam_search_model.text_embedder # ganti jadi text embedder
 
     pred_results = []
     src_data = []
