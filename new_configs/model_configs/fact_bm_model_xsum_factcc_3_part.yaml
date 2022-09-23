@@ -3,7 +3,7 @@ epoch: 150
 training_batch_size: 16
 hidden_size: 128
 embedding_size: 50
-use_size: 50000
+use_size: 5000
 
 fact_model_config: "new_configs/model_configs/fact_model.yaml"
 
