@@ -9,6 +9,8 @@ from _base_models_fact import TGEN_Reranker, TrainableReranker, SummaryFactTrain
 
 from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls
+from rouge import Rouge
+
 from pytorch_transformers import BertTokenizer
 
 from time import time 
@@ -216,6 +218,16 @@ def convert_id_to_text(tokenizer, token_ids):
     return text
 
 
+def get_rouge_score_function(scorer, tokenizer):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
+        summ_hypo = convert_id_to_text(tokenizer, path[1])
+        summ_tgt = convert_id_to_text(tokenizer, tgt)
+        scores = scorer.get_scores(summ_hypo, tgt, avg=True)
+        score = scores['rouge-l']['f']
+        
+        return score
+    return func
+
 def get_factcc_score_function(scorer, tokenizer):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         docs = convert_id_to_text(tokenizer, docs[0])
@@ -260,6 +272,29 @@ def get_mixed_fact_score_function(fact_scorer, tokenizer, w1, w2): # TODO FT use
 
     return func
 
+def get_rouge_fact_score_function(fact_scorer, rouge_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
+        docs = convert_id_to_text(tokenizer, docs[0])
+        summ_hypo = convert_id_to_text(tokenizer, path[1])
+        summ_tgt = convert_id_to_text(tokenizer, tgt)
+        
+        start = time()
+        
+        factcc_score = fact_scorer.classify(docs, summ_hypo)
+
+        rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
+        rouge_score = rouge_scores['rouge-l']['f']
+        
+        w_1 = w1
+        w_2 = w2
+
+        score = (w_1 * factcc_score + w_2 * rouge_score)/(w_1 + w_2)  # TODO FT need to train weight
+        # print("SKOR Fact MIXED: ", str(score))
+
+        return score
+
+    return func
+
 def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, alpha=0.65, summary_embedder=None, document_embedder=None):
     print("Using Scorer: {}".format(scorer))
 
@@ -276,6 +311,13 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
     elif scorer == "fact_mixed":
         factcc = FactccCaller()
         return get_mixed_fact_score_function(factcc, tokenizer, args.w1, args.w2)
+    elif scorer == "rouge":
+        rouge = Rouge()
+        return get_rouge_score_function(rouge, tokenizer)
+    elif scorer == "fact_rouge":
+        factcc = FactccCaller()
+        rouge = Rouge()
+        return get_rouge_fact_score_function(factcc, rouge, tokenizer, args.w1, args.w2)
     elif scorer == "weighted_fact":
         print("TODO")
     elif scorer == "surrogate_fact":

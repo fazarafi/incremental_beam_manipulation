@@ -32,6 +32,7 @@ import torch
 
 from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls
+from rouge import Rouge
 
 import sys
 sys.path.insert(0, './PreSumm/src') # hacky
@@ -63,7 +64,10 @@ def get_fact_scores(args, scorer, factcc_scorer, docs, summ):
         factcc_score = factcc_scorer.classify(docs, summ)
         summac_score = summac_cls(docs, summ)
         final_score = (w1*factcc_score + w2*summac_score)/(w1+w2)
-    # TODO FT use weight
+        # TODO FT use weight
+    elif scorer == 'fact_rouge':
+        # TODO FT
+
 
     return final_score
 

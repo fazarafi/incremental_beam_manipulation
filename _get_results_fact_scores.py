@@ -94,9 +94,6 @@ def test_summary_scores_official(args, pred_file_name, scorers):
         final_scores = {}
         final_scores["scorer"] = 'feqa'
         model = FEQA(use_gpu=True)
-        # scores = model.compute_score(documents_ref, summaries_ref, aggregate=False)
-        # average = average(scores)
-        # final_scores["average"] = average            
         agg_score = model.compute_score(documents_ref, summaries_sys, aggregate=True)
         final_scores["raw_scores"] = agg_score
         

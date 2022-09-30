@@ -38,14 +38,14 @@ MAX_LEN = 150
 
 SUMM_END_TOKENS = ['EOS', 2]
  
-def score_beams_fact(rescorer, beam, da_emb, i, docs):
+def score_beams_fact(rescorer, beam, da_emb, i, docs, summ_tgt):
     path_scores = []
     logprobs = [x[0] for x in beam]
     for path in beam:
         # lp_pos = sum([1 for lp in logprobs if lp > path[0] + 0.000001])
         lp_pos = 0
 
-        hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs)
+        hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs, summ_tgt)
         path_scores.append((hyp_score, path))
     return path_scores
 
@@ -57,7 +57,7 @@ recorded_sections = []
 # Ignore flags is a horrible hack to get non-greedy-rescorers not to use sections/pairwise flags of greedy
 # TODO pass in the value of the flags and then can controll these at a level where can distinguish between
 # greedy and non greedy
-def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=None, ignore_flags=False, summ_data=None):
+def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=None, ignore_flags=False, summ_data=None, summ_tgt=None):
     
     # this only works if rescorer is the one used in cfg
     global recorded_sections
@@ -75,7 +75,7 @@ def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=Non
         if cfg["train_reranker"]["with_refs_train"]:
             NotImplementedError()
 
-        scored_finished_beams = score_beams_fact(rescorer, beam, da_emb, i, docs)
+        scored_finished_beams = score_beams_fact(rescorer, beam, da_emb, i, docs, summ_tgt)
 
         mms = cfg["train_reranker"]["merge_middle_sections"]
         ot = cfg["train_reranker"]["only_top"]
@@ -89,7 +89,7 @@ def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=Non
     elif pairwise_flag:
         print("TODO FT removed pairwise")
     else:
-        path_scores = score_beams_fact(rescorer, beam, da_emb, i, summ_data)
+        path_scores = score_beams_fact(rescorer, beam, da_emb, i, summ_data, summ_tgt)
 
     order = sorted(enumerate(path_scores), reverse=True, key=lambda x: x[1][0])
 
@@ -105,7 +105,7 @@ def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=Non
 
 
 def order_beam_after_greedy_complete(rescorer, beam, da_emb, i, enc_outs, seq2seq, max_pred_len, cfg, length_norm_alpha=None, 
-summ_data=None, summ_model=None, summ_enc_outs=None, beam_size=None):
+summ_data=None, summ_model=None, summ_enc_outs=None, beam_size=None, summ_tgt=None):
     finished_beam = beam.copy()
     toks_pred_so_far = max([len(x[1]) for x in beam])
     # print("max_pred_len: ", max_pred_len)
@@ -117,7 +117,7 @@ summ_data=None, summ_model=None, summ_enc_outs=None, beam_size=None):
         # finished_beam, _ = seq2seq.beam_search_exapand(finished_beam, enc_outs, 1, length_norm_alpha=length_norm_alpha)
         if all([p[1][-1] in SUMM_END_TOKENS for p in finished_beam]):
             break
-    result = order_beam_acording_to_rescorer(rescorer, finished_beam, da_emb, i, cfg, beam, summ_data=summ_data)
+    result = order_beam_acording_to_rescorer(rescorer, finished_beam, da_emb, i, cfg, beam, summ_data=summ_data, summ_tgt=summ_tgt)
     return result
 
 
@@ -154,7 +154,7 @@ def run_nucleus_sampling(beam_search_model: TGEN_Model, das, cfg, max_pred_len=M
 def _run_beam_search_with_rescorer(args, i, da_emb, paths, enc_outs, beam_size, max_pred_len, seq2seq, cfg,
                                    rescorer=None, greedy_complete=[],
                                    save_progress_file=None, non_greedy_rescorer=None, length_norm_alpha=None, 
-                                   summ_model=None, summ_data=None, summ_enc_outs=None, summ_paths=None):
+                                   summ_model=None, summ_data=None, summ_enc_outs=None, summ_paths=None, summ_tgt=None):
     for step in range(max_pred_len):
         # print("STEP KE- ", str(step))
         # expand
@@ -173,9 +173,9 @@ def _run_beam_search_with_rescorer(args, i, da_emb, paths, enc_outs, beam_size, 
                                                         cfg, length_norm_alpha, 
                                                         summ_data=summ_data, summ_model=summ_model, summ_enc_outs=summ_enc_outs, beam_size=beam_size)
             elif step not in greedy_complete and non_greedy_rescorer is not None and cfg['non_greedy_scorer'] != 'identity':
-                summ_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, da_emb, i, cfg, ignore_flags=True, summ_data=summ_data)
+                summ_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, da_emb, i, cfg, ignore_flags=True, summ_data=summ_data, summ_tgt=summ_tgt)
             elif not greedy_complete and rescorer is not None and cfg['scorer'] != 'identity':
-                summ_paths = order_beam_acording_to_rescorer(rescorer, new_paths, da_emb, i, cfg, summ_data=summ_data)
+                summ_paths = order_beam_acording_to_rescorer(rescorer, new_paths, da_emb, i, cfg, summ_data=summ_data, summ_tgt=summ_tgt)
             else:
                 # TODO FT skip sorting?
                 # summ_paths = new_paths
@@ -418,18 +418,19 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                             summ_model=summ_beam_search_model,
                             summ_data=src,
                             summ_enc_outs=summ_enc_outs,
-                            summ_paths=summ_paths
+                            summ_paths=summ_paths,
+                            summ_tgt=tgt
                         )
 
                     final_beams.append(paths)
 
                     if only_rerank_final or also_rerank_final:
-                        paths = order_beam_acording_to_rescorer(scorer, paths, None, i, cfg, summ_data=src)
+                        paths = order_beam_acording_to_rescorer(scorer, paths, None, i, cfg, summ_data=src, summ_tgt=tgt)
                         
                     # A hack to handle the what we need right now - this should be updated
                     elif non_greedy_rescorer:
                         # TODO FT PARTIAL
-                        paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, None, i, cfg, ignore_flags=True, summ_data=src)
+                        paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, None, i, cfg, ignore_flags=True, summ_data=src, summ_tgt=tgt)
 
                     best_path = paths[0]
                     

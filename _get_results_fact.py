@@ -83,7 +83,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         print("[DEBUG FT] preds AFTER: ", len(preds))
         if "res_save_format" in cfg:
             save_filename = cfg["res_save_format"].format(beam_size)
-        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac']:
+        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac', 'fact_rouge']:
             fact_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
             save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], fact_cfg["output_type"],
                                                         fact_cfg["logprob_preprocess_type"],
