@@ -15,6 +15,9 @@ from utils import get_training_variables, apply_absts, get_abstss_train, get_tes
     get_true_sents, get_abstss_test, get_training_das_texts, SUMM_RESULTS_DIR, CONFIGS_MODEL_DIR, CONFIGS_DIR, postprocess, \
     get_multi_reference_training_variables, tgen_postprocess, get_args_presumm, get_timestamp_file, SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK
 
+import sys
+
+
 # Import FT Project
 from PreSumm.src.models import data_loader, model_builder
 from PreSumm.src.models.data_loader import load_dataset
@@ -24,9 +27,11 @@ from pytorch_transformers import BertTokenizer
 import torch
 from time import time
 import pickle
-
-import sys
 sys.path.insert(0, './PreSumm/src') # hacky
+
+# Import BART
+HOME_REPO = "/home/lr/faza.thirafi/raid/repository-kenkyuu-models/"
+sys.path.insert(0, HOME_REPO + "transformers/")
 
 import logging
 logger = logging.getLogger(__name__)
@@ -176,6 +181,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', default=None)
     parser.add_argument('-should_skip_beam', default=False)
+    parser.add_argument('-summ_model', default='presumm', type=str, choices=['presumm', 'bart'])
     parser = get_args_presumm(parser)
     args = parser.parse_args()
 

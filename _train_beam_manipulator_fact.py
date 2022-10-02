@@ -300,6 +300,7 @@ parser = get_args_presumm(parser)
 
 parser.add_argument('-c', default=None)
 parser.add_argument('-should_skip_beam', default=False)
+parser.add_argument('-summ_model', default='presumm', type=str, choices=['presumm', 'bart'])
 args = parser.parse_args()
 
 
