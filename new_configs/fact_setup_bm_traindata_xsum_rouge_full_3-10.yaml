@@ -5,7 +5,6 @@ scorer: 'fact_rouge'
 res_save_format:
   'xsum-rouge_fact-ignore-{}.txt'
 beam_sizes:
-  - 3
   - 10
 only_rerank_final: false
 beam_save_path: "output_files/saved_beams/xsum_fact_full_{}_train_{}.pickle"
