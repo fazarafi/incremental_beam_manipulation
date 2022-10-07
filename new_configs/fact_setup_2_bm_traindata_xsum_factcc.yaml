@@ -1,0 +1,18 @@
+tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
+
+# scorer: 'identity'
+scorer: 'factcc'
+res_save_format:
+  '{}-{}-ignore-{}.txt'
+  # {}-{}-ignore-{}-
+beam_sizes:
+  - 3
+  - 5
+  - 10
+  - 15
+  - 20
+only_rerank_final: false
+beam_save_path: "output_files/saved_beams/{}_{}_full_{}_train_{}.pickle"
+# "output_files/saved_beams/bart_xsum_full_factcc_train_{}.pickle"
+get_train_beam: true
+save_progress_file: "output_files/saved_beams/{}_{}_full_{}_progress_train_{}.pickle"
