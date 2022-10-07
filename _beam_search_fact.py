@@ -213,7 +213,8 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     recorded_sections = []
     save_final_beam_path_toggle = False
     if save_progress_path is not None:
-        save_progress_file = open(save_progress_path.format(beam_size), 'w+')
+        # save_progress_file = open(save_progress_path.format(beam_size), 'w+')
+        save_progress_file = open(save_progress_path.format(args.use_dataset, args.pretrained_model, cfg["scorer"], beam_size), 'w+')
     else:
         save_progress_file = None
 

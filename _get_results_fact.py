@@ -32,17 +32,68 @@ sys.path.insert(0, './PreSumm/src') # hacky
 # Import BART
 HOME_REPO = "/home/lr/faza.thirafi/raid/repository-kenkyuu-models/"
 sys.path.insert(0, HOME_REPO + "transformers/")
+from _bart_data_loader import load_bart_dataset, load_bart_model
 
 import logging
 logger = logging.getLogger(__name__)
 
 MAX_LEN = 150
 
+
+def load_presumm(args, device):
+    summ_data = [] 
+    summary_embedder = []
+    document_embedder = []
+    summ_model = []
+
+    summ_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
+                                            args.batch_size, device,
+                                            shuffle=False, is_test=False)
+
+    print("PreSumm: Counting dataset length...")
+
+    for batch in summ_data:
+        len_summ_data += len(batch.src)
+        document_embedder.append(batch.src)
+        summary_embedder.append(batch.tgt)
+    
+    print('Loading checkpoint from %s' % args.test_from)
+    checkpoint = torch.load(args.test_from, map_location=lambda storage, loc: storage)
+    summarization_models = AbsSummarizer(args, device, checkpoint)
+    summarization_models.eval()
+
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
+    symbols = {'BOS': tokenizer.vocab['[unused0]'], 'EOS': tokenizer.vocab['[unused1]'],
+            'PAD': tokenizer.vocab['[PAD]'], 'EOQ': tokenizer.vocab['[unused2]']}
+    summ_model = build_predictor(args, tokenizer, symbols, summarization_models, logger)
+    
+
+    return summ_data, summary_embedder, document_embedder, summ_model
+
+def load_bart(args):
+    summ_data = [] 
+    summary_embedder = []
+    document_embedder = []
+    summ_model = []
+
+    summ_data = load_bart_dataset(args.use_dataset, args.use_data)
+    print("BART: Counting dataset length...")
+
+    len_summ_data = len(summ_data)
+    for batch in summ_data:
+        document_embedder.append(batch["document"])
+        summary_embedder.append(batch["summary"])
+
+    summ_model = load_bart_model()
+
+    return summ_data, summary_embedder, document_embedder, summ_model
+
 def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder):
     print("Beam size = {} ".format(beam_size))
     beam_save_path = cfg.get('beam_save_path', '')
     if beam_save_path:
-        beam_save_path = beam_save_path.format(cfg['scorer'], beam_size)
+        # beam_save_path = beam_save_path.format(cfg['scorer'], beam_size)
+        beam_save_path = beam_save_path.format(args.use_dataset, args.pretrained_model, cfg["scorer"], beam_size)
 
     parent = os.path.abspath(os.path.join(beam_save_path, os.pardir))
     if not os.path.exists(parent):
@@ -146,42 +197,8 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                 for res in test_result:
                     out_file_result.write(str(res) + '\n')
 
-
-
-def do_nucleus_sampling(models, das_test, cfg, absts):
-    preds = run_nucleus_sampling(models, das_test, max_pred_len=MAX_LEN, cfg=cfg)
-    preds = [[x for x in pred if x not in [SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK]] for pred in preds]
-    if "res_save_format" in cfg:
-        save_filename = cfg["res_save_format"].format(1)
-    else:
-        raise ValueError('Not saving files any where')
-
-    if cfg.get("re-lexicalise", True):
-        print("Applying abstract")
-        post_abstr = apply_absts(absts, preds)
-    else:
-        print("Abstract not applied")
-        post_abstr = preds
-
-    save_path = os.path.join(SUMM_RESULTS_DIR, save_filename)
-    print("Saving to {}".format(save_path))
-    parent = os.path.abspath(os.path.join(save_path, os.pardir))
-    if not os.path.exists(parent):
-        os.makedirs(parent)
-    with open(save_path, "w+", encoding='utf-8') as out_file:
-        for pa in post_abstr:
-            # out_file.write(" ".join(pa) + '\n')
-            if cfg.get("re-lexicalise", True):
-                out_file.write(postprocess(" ".join(pa)) + '\n')
-            else:
-                out_file.write(" ".join(pa) + '\n')
-    print("Fact score:", test_summary_scores(save_filename, 'factcc', 'test'))
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', default=None)
-    parser.add_argument('-should_skip_beam', default=False)
-    parser.add_argument('-summ_model', default='presumm', type=str, choices=['presumm', 'bart'])
     parser = get_args_presumm(parser)
     args = parser.parse_args()
 
@@ -210,48 +227,20 @@ if __name__ == '__main__':
     [print("\t{}: {}".format(k, v)) for k, v in cfg.items()]
     print("*******")
 
-    # len_summ_data = 11273 for xsum
     len_summ_data = 0
-    summ_train_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
-                                        args.batch_size, device,
-                                        shuffle=False, is_test=False)
 
-    # Wrap summarization training set
-    
-    # train_docs = []
-    # train_segs = []
-    # train_mask_src = []
-    # train_summ = []
-    
-    print("Counting dataset length...")
-
+    summ_data = []
     document_embedder = []
     summary_embedder = []
-    for batch in summ_train_data:
-        len_summ_data += len(batch.src)
-        document_embedder.append(batch.src)
-        summary_embedder.append(batch.tgt)
-    
         
-        # train_docs.append(batch.src)
-        # train_segs.append(batch.segs)
-        # train_mask_src.append(batch.mask_src)
-        # train_summ.append(batch.tgt)
-
+    if (args.pretrained_model == 'presumm'):
+        summ_data, summary_embedder, document_embedder, summ_model = load_presumm(args, device)
+     
+    elif (args.pretrained_model == 'bart'):
+        summ_data, summary_embedder, document_embedder, summ_model = load_bart(args)
+        
+    
     print("Total data: ", len_summ_data)
-
-    # training_vals = list(zip(train_docs, train_segs, train_mask_src, train_summ))
-    # print("Loading summary dataset done")
-
-    print('Loading checkpoint from %s' % args.test_from)
-    checkpoint = torch.load(args.test_from, map_location=lambda storage, loc: storage)
-    summarization_models = AbsSummarizer(args, device, checkpoint)
-    summarization_models.eval()
-
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
-    symbols = {'BOS': tokenizer.vocab['[unused0]'], 'EOS': tokenizer.vocab['[unused1]'],
-            'PAD': tokenizer.vocab['[PAD]'], 'EOQ': tokenizer.vocab['[unused2]']}
-    summ_model = build_predictor(args, tokenizer, symbols, summarization_models, logger)
 
     if cfg.get("first_x", False):
         das_test = das_test[:cfg['first_x']]
@@ -261,12 +250,12 @@ if __name__ == '__main__':
         do_nucleus_sampling(models, das_test, cfg, absts)
     else:
         for beam_size in cfg["beam_sizes"]:
-            # summ_train_data = pickle.loads(pickle.dumps(summ_train_data_ori, -1))
+            # summ_data = pickle.loads(pickle.dumps(summ_data_ori, -1))
             st = time()
-            summ_train_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
+            summ_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
                                         args.batch_size, device, 
                                         shuffle=False, is_test=False)
             print("Dataset loading time: ", time() - st)
-            do_beam_search_fact(args, beam_size, cfg, None, None, None, None, None, None, summ_model, summ_train_data, len_summ_data, document_embedder, summary_embedder)
+            do_beam_search_fact(args, beam_size, cfg, None, None, None, None, None, None, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder)
 
     # print_results(args)

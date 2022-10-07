@@ -293,14 +293,7 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
 # python3 _fact_train_beam_manipulator.py -c new_configs/model_configs/fact_bm_model.yaml -gpu_ranks 0 -visible_gpus 0
 
 parser = argparse.ArgumentParser()
-
-
-# PreSumm parser
 parser = get_args_presumm(parser)
-
-parser.add_argument('-c', default=None)
-parser.add_argument('-should_skip_beam', default=False)
-parser.add_argument('-summ_model', default='presumm', type=str, choices=['presumm', 'bart'])
 args = parser.parse_args()
 
 

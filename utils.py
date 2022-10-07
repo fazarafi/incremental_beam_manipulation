@@ -25,6 +25,11 @@ import calendar
 
 from pytorch_transformers import BertTokenizer
 
+# Import BART
+HOME_REPO = "/home/lr/faza.thirafi/raid/repository-kenkyuu-models/"
+sys.path.insert(0, HOME_REPO + "transformers/")
+from src.transformers.models.auto.tokenization_auto import AutoTokenizer
+
 START_TOK = '<S>'
 END_TOK = '<E>'
 PAD_TOK = '<>'
@@ -422,6 +427,11 @@ def get_args_presumm(parser):
     
     parser.add_argument("-device", default='', type=str)
 
+    parser.add_argument('-c', default=None)
+    parser.add_argument('-should_skip_beam', default=False)
+    parser.add_argument('-use_dataset', default='xsum', type=str, choices=['xsum', 'cnndm'])
+    parser.add_argument('-pretrained_model', default='presumm', type=str, choices=['presumm', 'bart'])
+    
     return parser
 
 
@@ -438,6 +448,11 @@ def convert_id_to_text(tokenizer, token_ids):
     text = ' '.join(text).replace(' ##','')
     text = text.replace('[unused0]', '').replace('[unused3]', '').replace('[PAD]', '').replace('[unused1]', '').replace(r' +', ' ').replace(' [unused2] ', '<q>').replace('[unused2]', '').strip()
     
+    return text
+
+def convert_id_to_text_bart(token_ids):
+    tokenizer = AutoTokenizer.from_pretrained("sshleifer/distilbart-xsum-12-3")
+    text = tokenizer.decode(token_ids, skip_special_tokens=True)
     return text
 
 
