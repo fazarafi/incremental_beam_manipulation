@@ -438,11 +438,22 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                     j += 1
                 i += 1
             elif (args.pretrained_model=='bart'):
+                model_name = "sshleifer/distilbart-xsum-12-3" # TODO FT store it anywhere
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+                summ_model.init_beam_search_expand_single
+                batch
                 for :
                     if (should_skip_beam and i == batch_skipped+1 and j < remaining):
                         print("SKIP j: ", (i * batch_size) + j)
                     else:
                         print("Process summ_data: ke-", (i * batch_size) + j)
+
+                        # initiate beam search 
+                        summ_enc_outs = summ_beam_search_model.init_beam_search_expand_single(
+                                src, segs, mask_src
+                            )
+
 
                         
 

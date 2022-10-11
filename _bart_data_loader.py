@@ -29,10 +29,8 @@ def batch_tokenize_preprocess(batch, tokenizer, max_source_length, max_target_le
 
 def preprocess_data(dataset):
 
-    model_name = "sshleifer/distilbart-xsum-12-3"
-    # if language == "french":
-    #     model_name = "moussaKam/barthez-orangesum-abstract"
-
+    model_name = "sshleifer/distilbart-xsum-12-3" # TODO FT move as param
+    
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -52,7 +50,6 @@ def preprocess_data(dataset):
 
 def load_bart_dataset(dataset_name='xsum', data_type='train'):
     data = []
-
     if dataset_name =='xsum':
         if data_type == 'train':
             data = datasets.load_dataset(dataset_name, name='english', split="train")
