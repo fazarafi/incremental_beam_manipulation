@@ -1,0 +1,31 @@
+valid_size: 150
+epoch: 150
+training_batch_size: 16
+hidden_size: 128
+embedding_size: 50
+use_size: 5000
+
+fact_model_config: "new_configs/model_configs/fact_model.yaml"
+
+min_training_passes: 30
+show_reranker_post_training_stats: false
+train: true
+output_type: 'fact'
+logprob_preprocess_type: 'categorical_order'
+beam_size: 5
+dropout: 0.0
+too_close_limit: 0.01
+num_ranks: 4
+with_refs_train: false
+merge_middle_sections: false
+only_top: false
+only_bottom: true
+loss_function: 'absolute_error'
+# reranker_loc: 'models/bm'
+reranker_loc: 'models/fact-bm-xsum-factcc-rouge-5_part_5000'
+beam_save_path: "output_files/saved_beams/xsum_fact_full_fact_rouge_train_5.pickle"
+
+scorer: 'fact_rouge'
+
+
+
