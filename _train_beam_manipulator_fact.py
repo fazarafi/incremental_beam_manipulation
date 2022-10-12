@@ -12,7 +12,7 @@ from keras.utils import to_categorical
 from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 
-from utils import get_training_variables, START_TOK, PAD_TOK, END_TOK, get_multi_reference_training_variables, \
+from utils import get_training_variables, START_TOK, PAD_TOK, END_TOK, \
     get_final_beam, get_test_das, get_true_sents, TRAIN_BEAM_SAVE_FORMAT, TEST_BEAM_SAVE_FORMAT, RESULTS_DIR, \
     CONFIGS_MODEL_DIR, get_section_cutoffs, get_section_value, get_regression_vals, \
     get_args_presumm, SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK, SUMM_CLS_TOK, convert_id_to_text, get_timestamp_file
@@ -41,33 +41,42 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_fact_scores(args, scorer, factcc_scorer, docs, summ):
+def get_fact_scores(args, scorer, factcc_scorer, rouge_scorer, docs, summ_hypo, summ_tgt):
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
     
     # print(docs)
-    # print(summ)
+    # print(summ_hypo)
     
     # convert to factually scorable texts
     # if (docs) token_ids
     docs = convert_id_to_text(tokenizer, docs[0])
-    # if (summ) token_ids
-    summ = convert_id_to_text(tokenizer, summ)
+    # if (summ_hypo) token_ids
+    summ_hypo = convert_id_to_text(tokenizer, summ_hypo)
+
+    summ_tgt = convert_id_to_text(tokenizer, summ_tgt[0])
 
     final_score = 0
     if scorer == 'factcc':
-        final_score = factcc_scorer.classify(docs, summ)
+        final_score = factcc_scorer.classify(docs, summ_hypo)
     elif scorer == 'summac':
-        final_score = summac_cls(docs, summ)
+        final_score = summac_cls(docs, summ_hypo)
     elif scorer == 'fact_mixed':
         w1 = args.w1
         w2 = args.w2
-        factcc_score = factcc_scorer.classify(docs, summ)
-        summac_score = summac_cls(docs, summ)
+        factcc_score = factcc_scorer.classify(docs, summ_hypo)
+        summac_score = summac_cls(docs, summ_hypo)
         final_score = (w1*factcc_score + w2*summac_score)/(w1+w2)
         # TODO FT use weight
     elif scorer == 'fact_rouge':
-        # TODO FT
-
+        factcc_score = factcc_scorer.classify(docs, summ_hypo)
+        
+        rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
+        rouge_score = rouge_scores['rouge-l']['f']
+        
+        w1 = args.w1
+        w2 = args.w2
+        
+        final_score = (w1 * factcc_score + w2 * rouge_score)/(w1 + w2)
 
     return final_score
 
@@ -117,18 +126,11 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
     symbols = {'BOS': tokenizer.vocab['[unused0]'], 'EOS': tokenizer.vocab['[unused1]'],
                'PAD': tokenizer.vocab['[PAD]'], 'EOQ': tokenizer.vocab['[unused2]']}
     
-     
-    train_texts, train_das = get_multi_reference_training_variables()
     if beam_save_path is None:
         beam_save_path = TRAIN_BEAM_SAVE_FORMAT.format(beam_size, cfg["fact_model_config"].split('.')[0].split('/')[-1])
     
     print("path exist? ", os.path.exists(beam_save_path))
     if not os.path.exists(beam_save_path):
-        models = TGEN_Model(da_embedder, text_embedder, cfg["fact_model_config"])
-        models.load_models()
-        print("Creating test final beams")
-        scorer = get_score_function('identity', cfg, models, None, beam_size)
-        
         print('Loading checkpoint from %s' % args.test_from)
         checkpoint = torch.load(args.test_from, map_location=lambda storage, loc: storage)
         # opt = vars(checkpoint['opt'])
@@ -142,20 +144,13 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
     
         summarization_scorer = get_score_function_fact(args, cfg['scorer'], cfg, summ_predictor, None, beam_size)
 
-        run_beam_search_with_rescorer(args, summarization_scorer, models, train_das, beam_size, cfg, only_rerank_final=True,
+        run_beam_search_with_rescorer(args, summarization_scorer, None, None, beam_size, cfg, only_rerank_final=True,
                                       save_final_beam_path=beam_save_path,
                                       summ_scorer=summarization_scorer, summ_beam_search_model=summ_predictor, summ_data=summ_train_data, device=device)
-        
-        # run_beam_search_with_rescorer(scorer, models, train_das, beam_size, cfg, only_rerank_final=True,
-        #                               save_final_beam_path=beam_save_path)
     
     
     factcc_scorer = FactccCaller()
-    
-    fact_scores = []
-    docs_seqs = []
-    summ_seqs = []
-    
+    rouge_scorer = Rouge()
     
     bleu = BLEUScore()
 
@@ -183,9 +178,6 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
     if merge_middles and only_top:
             print("Ignoring only top since have merge_middle_sections set")
     
-    # training_vals = list(zip(final_beam, train_texts, train_das))
-
-
     # Wrap summarization training set
     train_docs = []
     train_summ = []
@@ -202,71 +194,94 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
     training_vals = training_vals[:cfg.get("use_size", len(training_vals))]
     # training_vals = training_vals[:20]
 
-    for beam, real_summs, docs in tqdm(training_vals):
+
+    if not os.path.exists(cfg["reranker_loc"]):
+        print("Create working folder: ", cfg["reranker_loc"])
+        os.mkdir(cfg["reranker_loc"])
+
+    beam_scores_path = os.path.join(cfg["reranker_loc"], "beam_scores." + str(cfg["use_size"]) + ".pickle")
+    summ_seqs_path = os.path.join(cfg["reranker_loc"], "summ_seqs." + str(cfg["use_size"]) + ".pickle")
+    docs_seqs_path = os.path.join(cfg["reranker_loc"], "docs_seqs." + str(cfg["use_size"]) + ".pickle")
+    fact_scores_path = os.path.join(cfg["reranker_loc"], "fact_scores." + str(cfg["use_size"]) + ".pickle")
+    log_probs_path = os.path.join(cfg["reranker_loc"], "log_probs." + str(cfg["use_size"]) + ".pickle")
+    
+    if (os.path.exists(beam_scores_path)):
+        print("Loading saved beam_scores, fact_scores, etc.")
+        beam_scores = pickle.load(open(beam_scores_path, "rb"))
+        summ_seqs = pickle.load(open(summ_seqs_path, "rb"))
+        docs_seqs = pickle.load(open(docs_seqs_path, "rb"))
+        fact_scores = pickle.load(open(fact_scores_path, "rb"))
+        log_probs = pickle.load(open(log_probs_path, "rb"))
+    else:
+        print("Creating beam_scores_path: ", beam_scores_path)
+        # Load all scores
+        for beam, real_summs, docs in tqdm(training_vals):
+            
+            beam_scores = []
+            if with_ref_train_flag:
+                # I am not sure how to do log probs?
+                summ_seqs.extend(real_summs)
+                docs_seqs.extend([docs for _ in real_summs])
+                fact_scores.extend([0 for _ in real_summs])
+
+            for i, path in enumerate(beam):
+                # print(i)
+                summ = path[1] 
+                # print("summ: ", summ)
+                # print("docs: ", docs)
+                # TODO FT check whether it's in the same data
+                fact_score = get_fact_scores(args, cfg['scorer'], factcc_scorer, rouge_scorer, docs, summ, real_summs)
+
+                beam_scores.append((fact_score, summ, path))
+
+
+            # for i,path in enumerate(beam):
+
+            #     bleu.reset()
+            #     bleu.append(hyp, [x for x in real_summs if x not in [START_TOK, END_TOK]])
+            #     beam_scores.append((bleu.score(), hyp, path))
+
+                
+            #     # log_probs.append(i)
+            # print("beam_scores: ", beam_scores)
+            for i, (score, hyp, path) in enumerate(sorted(beam_scores, key=lambda x: x[0], reverse=True)):
+                # TODO FT check, is it necessary for tokens?
+                # summ_seqs.append([SUMM_START_TOK] + hyp + [SUMM_END_TOK])
+                summ_seqs.append(hyp)
+                docs_seqs.append(docs)
+                
+                if cfg["output_type"] in ['fact']:
+                    fact_scores.append(score)
+                elif cfg["output_type"] in ['bleu', 'pair']:
+                    fact_scores.append(score)
+                elif cfg["output_type"] == 'order_discrete':
+                    fact_scores.append(to_categorical([i], num_classes=beam_size))
+                elif cfg["output_type"] in ['regression_ranker', 'regression_reranker_relative']:
+                    fact_scores.append(i / (beam_size - 1))
+                elif cfg["output_type"] in ['regression_sections', 'binary_classif']:
+                    val = (i / (beam_size - 1))
+                    regression_val = get_section_value(val, cut_offs, regression_vals,
+                                                    merge_middles, only_top, only_bottom)
+                    fact_scores.append(regression_val) # converts range from [0,1] to [-1,1] (which has mean of 0)
+                else:
+                    raise ValueError("Unknown output type")
+
+                log_probs.append([path[0]])
+
+        pickle.dump(beam_scores, open(beam_scores_path, "wb+"))
+        pickle.dump(summ_seqs, open(summ_seqs_path, "wb+"))
+        pickle.dump(docs_seqs, open(docs_seqs_path, "wb+"))
+        pickle.dump(fact_scores, open(fact_scores_path, "wb+"))
+        pickle.dump(log_probs, open(log_probs_path, "wb+"))
+
         
-        beam_scores = []
-        if with_ref_train_flag:
-            # I am not sure how to do log probs?
-            summ_seqs.extend(real_summs)
-            docs_seqs.extend([docs for _ in real_summs])
-            fact_scores.extend([0 for _ in real_summs])
-
-        for i, path in enumerate(beam):
-            # print(i)
-            summ = path[1] 
-            # print("summ: ", summ)
-            # print("docs: ", docs)
-            # TODO FT check whether it's in the same data
-            fact_score = get_fact_scores(args, cfg['scorer'], factcc_scorer, docs, summ)
-
-            beam_scores.append((fact_score, summ, path))
-
-
-        # for i,path in enumerate(beam):
-
-        #     bleu.reset()
-        #     hyp = [x for x in text_embedder.reverse_embedding(path[1]) if x not in [START_TOK, END_TOK, PAD_TOK]]
-        #     bleu.append(hyp, [x for x in real_summs if x not in [START_TOK, END_TOK]])
-        #     beam_scores.append((bleu.score(), hyp, path))
-
-            
-        #     # log_probs.append(i)
-        # print("beam_scores: ", beam_scores)
-        for i, (score, hyp, path) in enumerate(sorted(beam_scores, key=lambda x: x[0], reverse=True)):
-            # TODO FT check, is it necessary for tokens?
-            # summ_seqs.append([SUMM_START_TOK] + hyp + [SUMM_END_TOK])
-            summ_seqs.append(hyp)
-            docs_seqs.append(docs)
-            
-            if cfg["output_type"] in ['fact']:
-                fact_scores.append(score)
-            elif cfg["output_type"] in ['bleu', 'pair']:
-                fact_scores.append(score)
-            elif cfg["output_type"] == 'order_discrete':
-                fact_scores.append(to_categorical([i], num_classes=beam_size))
-            elif cfg["output_type"] in ['regression_ranker', 'regression_reranker_relative']:
-                fact_scores.append(i / (beam_size - 1))
-            elif cfg["output_type"] in ['regression_sections', 'binary_classif']:
-                val = (i / (beam_size - 1))
-                regression_val = get_section_value(val, cut_offs, regression_vals,
-                                                   merge_middles, only_top, only_bottom)
-                fact_scores.append(regression_val) # converts range from [0,1] to [-1,1] (which has mean of 0)
-            else:
-                raise ValueError("Unknown output type")
-
-            log_probs.append([path[0]])
 
     len_summ = max([len(x[0]) for x in summaries])
-    # TODO FT make embedder for better code
     summ_seqs = np.array(get_embeddings_summary(summ_seqs, symbols, len_summ))
     
     # TODO FT make sure, PAD in docs_seqs?
     len_docs = max([len(x[0]) for x in documents])
     docs_seqs = np.array(get_embeddings_summary(docs_seqs, symbols, len_docs))
-
-    # print("docs_seqs")
-    # print(docs_seqs[:3])
-
 
     if cfg["output_type"] in ['fact']:
         # print("SCORES: ", Counter(fact_scores))
@@ -326,14 +341,6 @@ cfg = yaml.safe_load(open(cfg_path, "r"))
 print("Config:")
 [print("\t{}: {}".format(k,v)) for k,v in cfg.items()]
 print("*******")
-texts, das = get_multi_reference_training_variables()
-da_embedder = DAEmbeddingSeq2SeqExtractor(das)
-
-# This is a very lazy move
-texts_flat, _ = get_training_variables()
-text_embedder = TokEmbeddingSeq2SeqExtractor(texts_flat)
-
-
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=args.temp_dir)
 symbols = {'BOS': tokenizer.vocab['[unused0]'], 'EOS': tokenizer.vocab['[unused1]'],
@@ -366,11 +373,6 @@ print(len(document_embedder), " ", len(summary_embedder), " ", len(batch_list))
 
 if cfg['output_type'] == 'fact':
     reranker = SummaryFactTrainableReranker(summary_embedder, document_embedder, cfg_path, tokenizer=tokenizer)
-elif cfg['output_type'] != 'pair':
-    reranker = TrainableReranker(da_embedder, text_embedder, cfg_path)
-else:
-    reranker = PairwiseReranker(da_embedder, text_embedder, cfg_path)
-
 
 if reranker.load_model():
     print("WARNING THE TRAINING START POINT IS AN ALREADY TRAINED MODEL")
@@ -417,12 +419,6 @@ if cfg["show_reranker_post_training_stats"]:
         test_summ_data.append(batch.tgt)
 
     if not os.path.exists(final_beam_path):
-        # print("Creating final beams file")
-        # models = TGEN_Model(da_embedder, text_embedder, cfg['tgen_seq2seq_config'])
-        # models.load_models()
-        # scorer = get_score_function('identity', cfg, models, None, 10)
-
-
         print('Loading checkpoint from %s' % args.test_from)
         checkpoint = torch.load(args.test_from, map_location=lambda storage, loc: storage)
         # opt = vars(checkpoint['opt'])
@@ -445,11 +441,10 @@ if cfg["show_reranker_post_training_stats"]:
 
     
     factcc_scorer = FactccCaller()
+    rouge_scorer = Rouge()
     # feqa_scorer = 
 
     
-    bleu = BLEUScore()
-    test_da_embs = da_embedder.get_embeddings(test_das)
     final_beam = pickle.load(open(final_beam_path, 'rb+'))
     all_reals = []
     all_preds = []
@@ -460,11 +455,9 @@ if cfg["show_reranker_post_training_stats"]:
     #     lp_probs_beam = [x[0] for x in beam]
     #     for i, path in enumerate(beam):
     #         logp, text_emb, _ = path
-    #         toks = text_embedder.reverse_embedding(text_emb)
     #         lp_rank = [sum([1 for x in lp_probs_beam if x > logp + 0.000001])]
     #         lp_rank_cat = to_categorical([lp_rank], num_classes=10)
     #         da_seqs = np.array([da_emb])
-    #         text_seqs = np.array(text_embedder.get_embeddings([toks], pad_from_end=False))
     #         score = reranker.predict_bleu_score(text_seqs, da_seqs, lp_rank_cat)
     #         score = 9 - np.argmax(score[0])
     #         all_preds.append(score)
@@ -495,7 +488,9 @@ if cfg["show_reranker_post_training_stats"]:
 
             # bleu.append(pred, test_summ)
 
-            score = get_fact_scores(args, cfg['scorer'], factcc_scorer, docs_seqs, test_summ)
+            summ_hypo = path[1]
+
+            score = get_fact_scores(args, cfg['scorer'], factcc_scorer, rouge_scorer, docs_seqs, summ_hypo, test_summ)
 
             real_scores.append((score), i)
 
@@ -507,13 +502,11 @@ if cfg["show_reranker_post_training_stats"]:
 
     beam_texts = [[text for text, _ in beam] for beam in final_beam]
     beam_tok_logprob = [[tp for _, tp in beam] for beam in final_beam]
-    # test_text_embs = [text_embedder.get_embeddings(beam) for beam in beam_texts]
     mapping = []
     order_correct_surrogate = 0
     order_correct_seq2seq = 0
     
     # for texts, da_emb, tp_emb, true_texts in zip(beam_texts, test_da_embs, beam_tok_logprob, test_texts):
-    #     summ_seqs = np.array(text_embedder.get_embeddings(texts, pad_from_end=False))
     #     docs_seqs = np.array([da_emb for _ in range(len(summ_seqs))])
     #     tp_seqs = np.array(tp_emb).reshape(-1, 1)
     #     preds = reranker.predict_bleu_score(summ_seqs, docs_seqs, tp_seqs)
@@ -550,7 +543,7 @@ if cfg["show_reranker_post_training_stats"]:
         #     mapping.append((pred[0], real))
         #     beam_scores.append((real, pred[0], i, tp[0]))
         for i, (pred, summ_hypo, tp) in enumerate(zip(preds, beam_summ, tp_seqs)):
-            real = get_fact_scores(args, cfg['scorer'], factcc_scorer, docs, summ_hypo)
+            real = get_fact_scores(args, cfg['scorer'], factcc_scorer, rouge_scorer, docs, summ_hypo, true_summ)
             mapping.append((pred[0], real))
             beam_scores.append((real, pred[0], i, tp[0]))
 
