@@ -4,12 +4,9 @@ import random
 import sys
 import yaml
 from pathlib import Path
-
-from _base_models_fact import TGEN_Model, TGEN_Reranker, PairwiseReranker
-from e2e_metrics.metrics.pymteval import BLEUScore
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
 from _get_results_fact_scores import print_results, test_summary_scores_official
-from _beam_search_fact import run_beam_search_with_rescorer, run_nucleus_sampling
+from _beam_search_fact import run_beam_search_with_rescorer
 from _scorer_functions_fact import get_score_function, get_score_function_fact
 from utils import get_training_variables, apply_absts, get_abstss_train, get_test_das, \
     get_true_sents, get_abstss_test, get_training_das_texts, SUMM_RESULTS_DIR, CONFIGS_MODEL_DIR, CONFIGS_DIR, postprocess, \
@@ -32,7 +29,7 @@ sys.path.insert(0, './PreSumm/src') # hacky
 # Import BART
 HOME_REPO = "/home/lr/faza.thirafi/raid/repository-kenkyuu-models/"
 sys.path.insert(0, HOME_REPO + "transformers/")
-from _bart_data_loader import load_bart_dataset, load_bart_model
+from _bart_utils import load_bart_dataset, load_bart_model
 
 import logging
 logger = logging.getLogger(__name__)
@@ -68,7 +65,7 @@ def load_presumm(args, device):
     summ_model = build_predictor(args, tokenizer, symbols, summarization_models, logger)
     
 
-    return summ_data, summary_embedder, document_embedder, summ_model
+    return summ_data, summary_embedder, document_embedder, summ_model, len_summ_data
 
 def load_bart(args):
     summ_data = [] 
@@ -80,9 +77,13 @@ def load_bart(args):
     print("BART: Counting dataset length...")
 
     len_summ_data = len(summ_data)
-    for batch in summ_data:
-        document_embedder.append(batch["document"])
-        summary_embedder.append(batch["summary"])
+    document_embedder = summ_data["document"]
+    summary_embedder = summ_data["summary"]
+
+    # for batch in summ_data["summary"]:
+    #     print("batch: ", batch)
+    #     document_embedder.append(batch["document"])
+    #     summary_embedder.append(batch["summary"])
 
     summ_model = load_bart_model()
 
@@ -101,10 +102,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
 
     # This is a horrible hack
     alpha = 0.65 if 'alpha' not in cfg else cfg['alpha'][beam_size]
-    if "train_reranker" in cfg and cfg["train_reranker"]["output_type"] in ["pair"]:
-        scorer_func = PairwiseReranker(da_embedder, text_embedder, cfg["trainable_reranker_config"])
-    else:
-        scorer_func = get_score_function_fact(args, cfg['scorer'], cfg, models, true_vals, beam_size, alpha, summary_embedder, document_embedder)
+    scorer_func = get_score_function_fact(args, cfg['scorer'], cfg, models, true_vals, beam_size, alpha, summary_embedder, document_embedder)
     max_pred_len = MAX_LEN
 
     non_greedy_score_func = None
@@ -234,10 +232,11 @@ if __name__ == '__main__':
     summary_embedder = []
         
     if (args.pretrained_model == 'presumm'):
-        summ_data, summary_embedder, document_embedder, summ_model = load_presumm(args, device)
+        summ_data, summary_embedder, document_embedder, summ_model, len_summ_data = load_presumm(args, device)
      
     elif (args.pretrained_model == 'bart'):
         summ_data, summary_embedder, document_embedder, summ_model = load_bart(args)
+        len_summ_data = len(summ_data)
         
     
     print("Total data: ", len_summ_data)
@@ -246,16 +245,15 @@ if __name__ == '__main__':
         das_test = das_test[:cfg['first_x']]
 
     absts = get_abstss_test()
-    if cfg.get('nucleus_sampling', False):
-        do_nucleus_sampling(models, das_test, cfg, absts)
-    else:
-        for beam_size in cfg["beam_sizes"]:
-            # summ_data = pickle.loads(pickle.dumps(summ_data_ori, -1))
-            st = time()
+    for beam_size in cfg["beam_sizes"]:
+        # summ_data = pickle.loads(pickle.dumps(summ_data_ori, -1))
+        st = time()
+        
+        if (args.pretrained_model == 'presumm'):
             summ_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
-                                        args.batch_size, device, 
-                                        shuffle=False, is_test=False)
-            print("Dataset loading time: ", time() - st)
-            do_beam_search_fact(args, beam_size, cfg, None, None, None, None, None, None, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder)
+                                               args.batch_size, device, 
+                                               shuffle=False, is_test=False)
+        print("Dataset loading time: ", time() - st)
+        do_beam_search_fact(args, beam_size, cfg, None, None, None, None, None, None, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder)
 
     # print_results(args)

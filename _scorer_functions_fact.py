@@ -2,7 +2,6 @@ import random
 import numpy as np
 from keras.utils import to_categorical
 
-from e2e_metrics.metrics.pymteval import BLEUScore
 from utils import START_TOK, END_TOK, PAD_TOK, get_features, SUMM_PAD_TOK
 
 from _base_models_fact import TGEN_Reranker, TrainableReranker, SummaryFactTrainableReranker
@@ -34,7 +33,6 @@ def get_tgen_rerank_score_func(tgen_reranker):
         return path[0] - 100 * reranker_score
 
     return func
-
 
 def get_identity_score_func():
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
@@ -91,7 +89,6 @@ def get_oracle_score_func(bleu, true_vals, text_embedder, reverse):
 
     return func
 
-
 def get_random_score_func():
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         return random.random()
@@ -147,9 +144,6 @@ def get_score_function(scorer, cfg, models, true_vals, beam_size, alpha=0.65):
         return get_tgen_rerank_score_func(tgen_reranker)
     elif scorer == 'identity':
         return get_identity_score_func()
-    elif scorer in ['oracle', 'rev_oracle']:
-        bleu_scorer = BLEUScore()
-        return get_oracle_score_func(bleu_scorer, true_vals, text_embedder, reverse=(scorer == 'rev_oracle'))
     elif scorer in ['surrogate', "surrogate_rev"]:
         learned = TrainableReranker(da_embedder, text_embedder, cfg['trainable_reranker_config'])
         learned.load_model()

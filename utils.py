@@ -48,6 +48,7 @@ SUMM_END_TOK = 'EOS'
 SUMM_PAD_TOK = 'PAD'
 SUMM_CLS_TOK = 'CLS'
 
+
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
