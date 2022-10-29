@@ -71,7 +71,7 @@ def get_fact_scores(args, scorer, factcc_scorer, rouge_scorer, docs, summ_hypo, 
         factcc_score = factcc_scorer.classify(docs, summ_hypo)
         
         rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
-        rouge_score = rouge_scores['rouge-l']['f']
+        rouge_score = rouge_scores['rouge-1']['f']
         
         w1 = args.w1
         w2 = args.w2

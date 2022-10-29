@@ -223,7 +223,7 @@ def get_rouge_score_function(scorer, tokenizer):
         summ_hypo = convert_id_to_text(tokenizer, path[1])
         summ_tgt = convert_id_to_text(tokenizer, tgt)
         scores = scorer.get_scores(summ_hypo, tgt, avg=True)
-        score = scores['rouge-l']['f']
+        score = scores['rouge-1']['f']
         
         return score
     return func
