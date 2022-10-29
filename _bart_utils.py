@@ -17,6 +17,8 @@ BART_START_TOKEN = 0
 BART_PAD_TOKEN = 1 #TODO bener?
 BART_END_TOKEN = 2
 
+BART_XSUM_MODEL = "sshleifer/distilbart-xsum-12-3"
+
 # def list2samples(example):
 #     documents = []
 #     summaries = []
@@ -53,7 +55,7 @@ def batch_tokenize_preprocess(batch, tokenizer, max_source_length, max_target_le
 
 def preprocess_data(dataset):
 
-    model_name = "sshleifer/distilbart-xsum-12-3" # TODO FT move as param
+    model_name = BART_XSUM_MODEL # TODO FT move as param
     
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -85,20 +87,20 @@ def load_bart_dataset(dataset_name='xsum', data_type='train'):
 
     return preprocess_data(dataset)
 
-def load_bart_model(model_name="sshleifer/distilbart-xsum-12-3"):
+def load_bart_model(model_name=BART_XSUM_MODEL):
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     return model
 
 def convert_ids_to_text(tokenizer, ids):
+    print("ids: ", ids)
     text = tokenizer.decode(ids, skip_special_tokens=True)
 
     return text
 
-def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, step, summ_data, input_params, **model_kwargs):
+def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, summ_data, input_params, **model_kwargs):
 
-    updated_summ_paths, return_params, input_ids, model_kwargs, this_peer_finished = summ_model.beam_search_expand_single(
+    updated_summ_paths, return_params, input_ids, model_kwargs = summ_model.beam_search_expand_single(
         input_params,
-        step,
         summ_paths,
         input_params["input_ids"],
         input_params["beam_scorer"],
@@ -112,10 +114,10 @@ def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, step, summ
         **model_kwargs,
     )
 
-    if (this_peer_finished):
+    if (return_params["this_peer_finished"]):
         print("SELESAII")
 
-    return updated_summ_paths, return_params, input_ids, model_kwargs, this_peer_finished
+    return updated_summ_paths, return_params, input_ids, model_kwargs
 
 def finalize_beam_search_expand_single_bart(summ_model, params):
     result = summ_model.finalize_beam_search_expand_single(
@@ -134,6 +136,10 @@ def finalize_beam_search_expand_single_bart(summ_model, params):
     )
 
     return result
+
+def get_bart_tokenizer(model_name=BART_XSUM_MODEL):
+    return AutoTokenizer.from_pretrained(model_name)
+
 
 def main():
 
