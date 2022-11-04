@@ -207,6 +207,10 @@ def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_or
 
 def convert_id_to_text(pretrained_model, tokenizer, token_ids):
     text = ""
+
+    if type(token_ids) is str:
+        return token_ids
+
     if (pretrained_model=='presumm'):
         # Convert token_ids to text for factual consistency scoring
         text = tokenizer.convert_ids_to_tokens([int(n) for n in token_ids])
@@ -230,8 +234,12 @@ def get_rouge_score_function(pretrained_model, scorer, tokenizer):
 
 def get_factcc_score_function(pretrained_model, scorer, tokenizer):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
-        docs = convert_id_to_text(pretrained_model, tokenizer, docs[0])
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+
+        # print("docs ", docs)
+        # print("summ_hypo ", summ_hypo)
+
         score = scorer.classify(docs, summ_hypo)
         
         return score

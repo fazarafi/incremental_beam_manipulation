@@ -87,23 +87,20 @@ def load_bart_dataset(dataset_name='xsum', data_type='train'):
 
     return preprocess_data(dataset)
 
-def load_bart_model(model_name=BART_XSUM_MODEL):
+def load_bart_model(args, model_name=BART_XSUM_MODEL):
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    model.to(args.device)
     return model
 
 def convert_ids_to_text(tokenizer, ids):
-    print("ids: ", ids)
     text = tokenizer.decode(ids, skip_special_tokens=True)
 
     return text
 
 def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, summ_data, input_params, **model_kwargs):
-
-    updated_summ_paths, return_params, input_ids, model_kwargs = summ_model.beam_search_expand_single(
+    updated_summ_paths, input_params, model_kwargs = summ_model.beam_search_expand_single(
         input_params,
         summ_paths,
-        input_params["input_ids"],
-        input_params["beam_scorer"],
         logits_processor=input_params["logits_processor"],
         stopping_criteria=input_params["stopping_criteria"],
         pad_token_id=input_params["pad_token_id"],
@@ -114,10 +111,10 @@ def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, summ_data,
         **model_kwargs,
     )
 
-    if (return_params["this_peer_finished"]):
+    if (input_params["this_peer_finished"]):
         print("SELESAII")
 
-    return updated_summ_paths, return_params, input_ids, model_kwargs
+    return updated_summ_paths, input_params, model_kwargs
 
 def finalize_beam_search_expand_single_bart(summ_model, params):
     result = summ_model.finalize_beam_search_expand_single(

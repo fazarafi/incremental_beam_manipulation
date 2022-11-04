@@ -42,6 +42,7 @@ def load_presumm(args, device):
     summary_embedder = []
     document_embedder = []
     summ_model = []
+    len_summ_data = 0
 
     summ_data = data_loader.Dataloader(args, load_dataset(args, args.use_data, shuffle=False),
                                             args.batch_size, device,
@@ -85,7 +86,7 @@ def load_bart(args):
     #     document_embedder.append(batch["document"])
     #     summary_embedder.append(batch["summary"])
 
-    summ_model = load_bart_model()
+    summ_model = load_bart_model(args)
 
     return summ_data, summary_embedder, document_embedder, summ_model
 
