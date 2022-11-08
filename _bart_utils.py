@@ -8,7 +8,7 @@ sys.path.insert(0, HOME_REPO + "transformers/src")
 
 import datasets
 
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, AutoModelForCausalLM
 
 BART_ENCODER_MAX_LENGTH = 256
 BART_DECODER_MAX_LENGTH = 64
@@ -17,7 +17,9 @@ BART_START_TOKEN = 0
 BART_PAD_TOKEN = 1 #TODO bener?
 BART_END_TOKEN = 2
 
-BART_XSUM_MODEL = "sshleifer/distilbart-xsum-12-3"
+BART_XSUM_MODEL = "facebook/bart-large-xsum"
+BART_CNN_MODEL = "facebook/bart-large-cnn"
+
 
 # def list2samples(example):
 #     documents = []
@@ -34,9 +36,7 @@ def cnndm_flatten(example):
         "summary": example["highlights"],
     }
 
-
-
-def batch_tokenize_preprocess(batch, tokenizer, max_source_length, max_target_length):
+def batch_tokenize_preprocess(args, batch, tokenizer, max_source_length, max_target_length):
     source, target = batch["document"], batch["summary"]
     source_tokenized = tokenizer(
         source, padding="max_length", truncation=True, max_length=max_source_length
@@ -53,7 +53,7 @@ def batch_tokenize_preprocess(batch, tokenizer, max_source_length, max_target_le
     ]
     return batch
 
-def preprocess_data(dataset):
+def preprocess_data(args, dataset):
 
     model_name = BART_XSUM_MODEL # TODO FT move as param
     
@@ -65,7 +65,7 @@ def preprocess_data(dataset):
 
     data = dataset.map(
         lambda batch: batch_tokenize_preprocess(
-            batch, tokenizer, encoder_max_length, decoder_max_length
+            args, batch, tokenizer, encoder_max_length, decoder_max_length
         ),
         batched=True,
         remove_columns=dataset.column_names,
@@ -73,22 +73,38 @@ def preprocess_data(dataset):
 
     return dataset
 
-def load_bart_dataset(dataset_name='xsum', data_type='train'):
+def load_bart_dataset(args): 
+    dataset_name = args.use_dataset
+    data_type = args.use_data
     dataset = []
     if dataset_name == 'xsum':
         data = datasets.load_dataset(dataset_name, name='english', 
             split="validation" if data_type=="valid" else data_type)
         dataset = data.map(remove_columns=["id"])
     
-    elif dataset_name == '"cnn_dailymail"':
+    elif dataset_name == 'cnn_dm':
+        dataset_name = 'cnn_dailymail'
         data = datasets.load_dataset(dataset_name, name='3.0.0', 
             split="validation" if data_type=="valid" else data_type)
         dataset = data.map(cnndm_flatten , remove_columns=["highlights","article", "id"])
 
-    return preprocess_data(dataset)
+    return preprocess_data(args, dataset)
 
 def load_bart_model(args, model_name=BART_XSUM_MODEL):
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    max_memory_mapping = {0: "1GB", 1: "2GB"}
+    
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     model_name, 
+    #     # device_map="auto", 
+    #     # load_in_8bit=True, 
+    #     max_memory=max_memory_mapping)
+    
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        model_name, 
+        # device_map="auto", 
+        # load_in_8bit=True, 
+        # max_memory=max_memory_mapping
+        )
     model.to(args.device)
     return model
 
@@ -134,13 +150,19 @@ def finalize_beam_search_expand_single_bart(summ_model, params):
 
     return result
 
-def get_bart_tokenizer(model_name=BART_XSUM_MODEL):
+def get_bart_tokenizer(args, model_name=BART_XSUM_MODEL):
+    if args.use_dataset is 'xsum':
+        model_name = BART_XSUM_MODEL
+    elif args.use_dataset == 'cnndm':
+        model_name = BART_CNN_MODEL
     return AutoTokenizer.from_pretrained(model_name)
+
+def assign_GPU(Tokenizer_output):
 
 
 def main():
 
-    data = load_bart_dataset("xsum", "valid")
+    data = load_bart_dataset("", "xsum", "valid")
 
     print(data[:3])
 

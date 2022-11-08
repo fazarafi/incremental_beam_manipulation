@@ -14,7 +14,7 @@ from pytorch_transformers import BertTokenizer
 
 from time import time 
 
-from _bart_utils import get_bart_tokenizer, convert_ids_to_text, BART_XSUM_MODEL
+from _bart_utils import get_bart_tokenizer, convert_ids_to_text
 
 def get_regressor_score_func(regressor, text_embedder, w2v):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
@@ -317,7 +317,7 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
                 'PAD': tokenizer.vocab['[PAD]'], 'EOQ': tokenizer.vocab['[unused2]']}
 
     if (pretrained_model=='bart'):
-        tokenizer = get_bart_tokenizer(BART_XSUM_MODEL)
+        tokenizer = get_bart_tokenizer(args)
 
     # convert docs and hypo to text
     if scorer == "factcc":

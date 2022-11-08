@@ -74,7 +74,7 @@ def load_bart(args):
     document_embedder = []
     summ_model = []
 
-    summ_data = load_bart_dataset(args.use_dataset, args.use_data)
+    summ_data = load_bart_dataset(args)
     print("BART: Counting dataset length...")
 
     len_summ_data = len(summ_data)
@@ -94,7 +94,6 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
     print("Beam size = {} ".format(beam_size))
     beam_save_path = cfg.get('beam_save_path', '')
     if beam_save_path:
-        # beam_save_path = beam_save_path.format(cfg['scorer'], beam_size)
         beam_save_path = beam_save_path.format(args.use_dataset, args.pretrained_model, cfg["scorer"], beam_size)
 
     parent = os.path.abspath(os.path.join(beam_save_path, os.pardir))

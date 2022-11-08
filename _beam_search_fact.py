@@ -287,7 +287,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     remaining = 0
     batch_size = 0
 
-    bart_tokenizer = get_bart_tokenizer()
+    bart_tokenizer = get_bart_tokenizer(args)
     
     if (args.pretrained_model=='presumm'):
         with torch.no_grad():
@@ -400,8 +400,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                 i += 1
     elif (args.pretrained_model=='bart'):
         with torch.no_grad():
-            model_name = "sshleifer/distilbart-xsum-12-3" # TODO FT store it somewhere
-            tokenizer = get_bart_tokenizer(model_name)
+            tokenizer = get_bart_tokenizer(args)
 
             i = len(final_beams)
             
@@ -421,7 +420,6 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                 src_input_ids = inputs.input_ids.to(summ_beam_search_model.device)
                 # print(len(src_input_ids), "  ","src_input_ids ", src_input_ids)
                 attention_mask = inputs.attention_mask.to(summ_beam_search_model.device)
-                print("summ_beam_search_model.device ", summ_beam_search_model.device)
 
                 params, model_kwargs = summ_beam_search_model.generate_beam_expansion(
                     src_input_ids, num_beams=beam_size, attention_mask=attention_mask
@@ -440,15 +438,6 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                             device=device
                         )
                     ))
-
-                # summ_paths = [(
-                #     log(1.0),
-                #     torch.tensor(
-                #         params["input_ids"].view(-1),
-                #         dtype=torch.long,
-                #         # device=device
-                #     )
-                # )]
 
                 if should_load_beams:
                     paths = load_final_beams[(i * batch_size) + j]
