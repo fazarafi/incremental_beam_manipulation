@@ -157,8 +157,15 @@ def get_bart_tokenizer(args, model_name=BART_XSUM_MODEL):
         model_name = BART_CNN_MODEL
     return AutoTokenizer.from_pretrained(model_name)
 
-def assign_GPU(Tokenizer_output):
+def assign_GPU(args, tokenizer_output):
+    tokens_tensor = tokenizer_output['input_ids'].to(args.device)
+    token_type_ids = tokenizer_output['token_type_ids'].to(args.device)
+    attention_mask = tokenizer_output['attention_mask'].to(args.device)
 
+    output = {'input_ids' : tokens_tensor, 
+            'token_type_ids' : token_type_ids, 
+            'attention_mask' : attention_mask}
+    return output
 
 def main():
 
