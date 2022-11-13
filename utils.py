@@ -358,7 +358,6 @@ def get_args_presumm(parser):
     parser.add_argument("-result_path", default='PreSumm/results/xsum')
     parser.add_argument("-temp_dir", default='PreSumm/temp')
 
-    parser.add_argument("-batch_size", default=16, type=int)
     parser.add_argument("-test_batch_size", default=16, type=int)
 
     parser.add_argument("-max_pos", default=512, type=int)
@@ -432,6 +431,8 @@ def get_args_presumm(parser):
     parser.add_argument('-should_skip_beam', default=False)
     parser.add_argument('-use_dataset', default='xsum', type=str, choices=['xsum', 'cnndm'])
     parser.add_argument('-pretrained_model', default='presumm', type=str, choices=['presumm', 'bart'])
+    parser.add_argument("-batch_size", default=1, type=int)
+    
     
     return parser
 

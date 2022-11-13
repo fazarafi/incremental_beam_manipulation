@@ -82,7 +82,7 @@ def load_bart_dataset(args):
             split="validation" if data_type=="valid" else data_type)
         dataset = data.map(remove_columns=["id"])
     
-    elif dataset_name == 'cnn_dm':
+    elif dataset_name == 'cnndm':
         dataset_name = 'cnn_dailymail'
         data = datasets.load_dataset(dataset_name, name='3.0.0', 
             split="validation" if data_type=="valid" else data_type)
@@ -92,12 +92,6 @@ def load_bart_dataset(args):
 
 def load_bart_model(args, model_name=BART_XSUM_MODEL):
     max_memory_mapping = {0: "1GB", 1: "2GB"}
-    
-    # model = AutoModelForCausalLM.from_pretrained(
-    #     model_name, 
-    #     # device_map="auto", 
-    #     # load_in_8bit=True, 
-    #     max_memory=max_memory_mapping)
     
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_name, 
@@ -114,7 +108,7 @@ def convert_ids_to_text(tokenizer, ids):
     return text
 
 def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, summ_data, input_params, **model_kwargs):
-    updated_summ_paths, input_params, model_kwargs = summ_model.beam_search_expand_single(
+    updated_summ_paths, return_params, model_kwargs = summ_model.beam_search_expand_single(
         input_params,
         summ_paths,
         logits_processor=input_params["logits_processor"],
@@ -127,14 +121,10 @@ def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, summ_data,
         **model_kwargs,
     )
 
-    if (input_params["this_peer_finished"]):
-        print("SELESAII")
-
-    return updated_summ_paths, input_params, model_kwargs
+    return updated_summ_paths, return_params, model_kwargs
 
 def finalize_beam_search_expand_single_bart(summ_model, params):
     result = summ_model.finalize_beam_search_expand_single(
-        params,
         params["beam_scorer"],
         params["input_ids"],
         params["beam_scores"],
@@ -145,7 +135,7 @@ def finalize_beam_search_expand_single_bart(summ_model, params):
         params["stopping_criteria"],
         params["beam_indices"],
         params["return_dict_in_generate"],
-        params["output_scores"],
+        params["output_scores"]
     )
 
     return result

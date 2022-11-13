@@ -209,7 +209,7 @@ if __name__ == '__main__':
     device_id = 0 if device == "cuda" else -1
 
     args.device = device
-
+    
     cfg_path = args.c
     if cfg_path is None:
         filenames = os.listdir(CONFIGS_DIR)

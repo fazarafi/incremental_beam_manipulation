@@ -38,6 +38,7 @@ from _bart_utils import load_bart_dataset, load_bart_model, convert_ids_to_text,
     BART_XSUM_MODEL
 
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from more_itertools import chunked
 
 import random
 
@@ -160,7 +161,7 @@ def _run_beam_search_with_rescorer(args, i, da_emb, paths, enc_outs, beam_size, 
             if step in greedy_complete and rescorer is not None:
                 summ_paths = order_beam_after_greedy_complete(rescorer, new_paths, da_emb, i, enc_outs, seq2seq, max_pred_len,
                                                         cfg, length_norm_alpha, 
-                                                        summ_data=summ_data, summ_model=summ_model, summ_enc_outs=summ_enc_outs, beam_size=beam_size)
+                                                        summ_data=summ_data[i], summ_model=summ_model, summ_enc_outs=summ_enc_outs, beam_size=beam_size)
             elif step not in greedy_complete and non_greedy_rescorer is not None and cfg['non_greedy_scorer'] != 'identity':
                 summ_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, da_emb, i, cfg, ignore_flags=True, summ_data=summ_data, summ_tgt=summ_tgt)
             elif not greedy_complete and rescorer is not None and cfg['scorer'] != 'identity':
@@ -197,45 +198,67 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
                                         rescorer=None, greedy_complete=[],
                                         save_progress_file=None, non_greedy_rescorer=None, length_norm_alpha=None, 
                                         summ_model=None, summ_data=None, summ_paths=None, summ_tgt=None,
-                                        bart_params=None, bart_tokenizer=None, **model_kwargs):
+                                        bart_params=None, bart_tokenizer=None, batch_size=1, **model_kwargs):
     params = bart_params.copy()
     for step in range(max_pred_len):
-        # new_paths = summ_model.beam_search_expand_single(summ_paths, beam_size, step, summ_data, summ_enc_outs)
-        new_paths, params, model_kwargs = \
+        start_time = time()
+        new_all_paths, params, model_kwargs = \
             beam_search_expand_single_bart(summ_model, summ_paths, beam_size, summ_data, params, **model_kwargs)
 
         # prune
         # randomize whether we use scoring or not
         # use scoring when len > 3
-        if (random.randint(0,9) % 2) and len(new_paths[0][1])>3:
-            if step in greedy_complete and rescorer is not None:
-                summ_paths = order_beam_after_greedy_complete_bart(rescorer, new_paths, i, max_pred_len, cfg, length_norm_alpha, 
-                                                        summ_data=summ_data, summ_model=summ_model, summ_enc_outs=summ_enc_outs, beam_size=beam_size,
-                                                        bart_params=params, **model_kwargs)
-            elif step not in greedy_complete and non_greedy_rescorer is not None and cfg['non_greedy_scorer'] != 'identity':
-                summ_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, None, i, cfg, ignore_flags=True, summ_data=summ_data, summ_tgt=summ_tgt)
-            elif not greedy_complete and rescorer is not None and cfg['scorer'] != 'identity':
-                summ_paths = order_beam_acording_to_rescorer(rescorer, new_paths, None, i, cfg, summ_data=summ_data, summ_tgt=summ_tgt)
+        
+        if (params['this_peer_finished']):
+            sequence_output = finalize_beam_search_expand_single_bart(summ_model, params)
+
+            last_path = []
+            for idx, (seq, bs) in enumerate(zip(sequence_output["sequences"], sequence_output["sequence_scores"])):
+                # TODO FT fix this beam size-times
+                for x in range(beam_size):
+                    last_path.append((bs.item(), seq))
+
+            new_all_paths = last_path
+
+
+        total_summ_paths = []
+        for idx in range(batch_size):
+            new_paths = new_all_paths[idx*beam_size : (idx+1)*beam_size]
+            
+            if (random.randint(0,9) % 2) and len(new_paths[0][1])>3:
+                
+                if step in greedy_complete and rescorer is not None:
+                    summ_paths = order_beam_after_greedy_complete_bart(rescorer, new_paths, i, max_pred_len, cfg, length_norm_alpha, 
+                                                            summ_data=summ_data, summ_model=summ_model, summ_enc_outs=summ_enc_outs, beam_size=beam_size,
+                                                            bart_params=params, **model_kwargs)
+                elif step not in greedy_complete and non_greedy_rescorer is not None and cfg['non_greedy_scorer'] != 'identity':
+                    summ_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, None, i, cfg, ignore_flags=True, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
+                elif not greedy_complete and rescorer is not None and cfg['scorer'] != 'identity':
+                    summ_paths = order_beam_acording_to_rescorer(rescorer, new_paths, None, i, cfg, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
+                else:
+                    summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
             else:
                 summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
-        else:
-            summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
-        
-        summ_paths = summ_paths[:beam_size]
-        
+            
+            summ_paths = summ_paths[:beam_size]
+
+            
+
+            total_summ_paths = total_summ_paths + summ_paths
+            
+            
+
+        summ_paths = total_summ_paths
+
         if save_progress_file:
-            # print("SAVE!")
             save_progress_file.write("Step: {}\n".format(step))
             for path in summ_paths:
-                # toks = [x for x in seq2seq.text_embedder.reverse_embedding(path[1]) if x != PAD_TOK]
                 toks = convert_ids_to_text(bart_tokenizer, path[1])
-                # print("save: ",str(toks))
-                # save_progress_file.write(" ".join(toks.encode('utf-8').decode('utf-8')) + '\n')
-                # print(type(toks))
                 save_progress_file.write(" ".join(str(toks.encode('utf-8', 'ignore'))) + '\n')
             save_progress_file.write("\n")
 
-        # if all([p[1][-1] in SUMM_END_TOKENS for p in summ_paths]):
+        print("^ Time for cycle: ", time() - start_time)
+        
         if params["this_peer_finished"]:
             break
 
@@ -402,23 +425,24 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
         with torch.no_grad():
             tokenizer = get_bart_tokenizer(args)
 
-            i = len(final_beams)
+            batch_size = args.batch_size
+            idx = len(final_beams)
             
-            # TODO FT work on multiprocessing here
-            for src, tgt in zip(summ_data["document"][len(final_beams):], summ_data["summary"][len(final_beams):]):
-                i += 1 
+            for batch in chunked(zip(summ_data["document"][len(final_beams):], summ_data["summary"][len(final_beams):]), batch_size):
+                print("Process summ_data: ", idx + 1, " to ", idx + batch_size)
                 
-                print("Process summ_data: ke-", i)
+                src_list = [d for d,s in batch]
+                tgt_list = [s for d,s in batch]
 
                 inputs = tokenizer(
-                    [src],
+                    src_list,
                     padding="max_length",
                     truncation=True,
                     max_length=BART_ENCODER_MAX_LENGTH,
                     return_tensors="pt",
                 )
+                
                 src_input_ids = inputs.input_ids.to(summ_beam_search_model.device)
-                # print(len(src_input_ids), "  ","src_input_ids ", src_input_ids)
                 attention_mask = inputs.attention_mask.to(summ_beam_search_model.device)
 
                 params, model_kwargs = summ_beam_search_model.generate_beam_expansion(
@@ -440,11 +464,11 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                     ))
 
                 if should_load_beams:
-                    paths = load_final_beams[(i * batch_size) + j]
+                    paths = load_final_beams[(idx * batch_size) + j]
                 else:
                     paths = _run_beam_search_with_rescorer_bart(
                         args, 
-                        i=i,
+                        i=idx,
                         beam_size=beam_size,
                         max_pred_len=max_pred_len,
                         rescorer=scorer if not only_rerank_final else None,
@@ -454,38 +478,43 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                         non_greedy_rescorer=non_greedy_rescorer,
                         length_norm_alpha=length_norm_alpha,
                         summ_model=summ_beam_search_model,
-                        summ_data=src,
+                        summ_data=src_list,
                         summ_paths=summ_paths,
-                        summ_tgt=tgt,
+                        summ_tgt=tgt_list,
                         bart_params=params,
                         bart_tokenizer=bart_tokenizer,
+                        batch_size=batch_size,
                         **model_kwargs
                     )
+                # print("paths: ", paths)
 
-                final_beams.append(paths)
+                # TODO FT take for each batch_size
+                for i, (src, tgt) in enumerate(zip(src_list, tgt_list)): 
+                    sub_paths = paths[i*beam_size : (i+1)*beam_size]
 
-                if only_rerank_final or also_rerank_final:
-                    paths = order_beam_acording_to_rescorer(scorer, paths, None, i, cfg, summ_data=src, summ_tgt=tgt)
+                    final_beams.append(sub_paths)
+                    if only_rerank_final or also_rerank_final:
+                        sub_paths = order_beam_acording_to_rescorer(scorer, sub_paths, None, i, cfg, summ_data=src, summ_tgt=tgt)
+                        
+                    # A hack to handle the what we need right now - this should be updated
+                    elif non_greedy_rescorer:
+                        sub_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, sub_paths, None, i, cfg, ignore_flags=True, summ_data=src, summ_tgt=tgt)
+
+                    best_path = sub_paths[0]
                     
-                # A hack to handle the what we need right now - this should be updated
-                elif non_greedy_rescorer:
-                    # TODO FT PARTIAL
-                    paths = order_beam_acording_to_rescorer(non_greedy_rescorer, paths, None, i, cfg, ignore_flags=True, summ_data=src, summ_tgt=tgt)
+                    pred_toks = convert_ids_to_text(bart_tokenizer, best_path[1])
 
-                best_path = paths[0]
-                
-                pred_toks = convert_ids_to_text(bart_tokenizer, best_path[1])
+                    src_toks = convert_ids_to_text(bart_tokenizer, src) if type(src) is not str else src
+                    tgt_toks = convert_ids_to_text(bart_tokenizer, tgt) if type(tgt) is not str else tgt
 
-                src_toks = convert_ids_to_text(bart_tokenizer, src) if type(src) is not str else src
-                tgt_toks = convert_ids_to_text(bart_tokenizer, tgt) if type(tgt) is not str else tgt
+                    pred_results.append(pred_toks)
+                    src_data.append(src_toks)
+                    tgt_data.append(tgt_toks)
 
-                pred_results.append(pred_toks)
-                src_data.append(src_toks)
-                tgt_data.append(tgt_toks)
+                print("LEN FINAL BEAM: ",len(final_beams))
 
                 save_final_beam_path_toggle = not save_final_beam_path_toggle
-
-                if should_save_beams and (i % 100 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
+                if should_save_beams and (int(idx/batch_size) % 10 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
                     print("Saving final beam states at ", save_final_beam_path)
                     if save_final_beam_path_toggle:
                         toggledPath = save_final_beam_path
@@ -493,6 +522,9 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                         splits = save_final_beam_path.split('.')
                         toggledPath = splits[0] + '.' + splits[1]
                     pickle.dump(final_beams, open(toggledPath, "wb+"))
+            
+                idx += batch_size
+                
 
     
     print("*** Time to generate text =", time() - start)
