@@ -94,7 +94,10 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
     print("Beam size = {} ".format(beam_size))
     beam_save_path = cfg.get('beam_save_path', '')
     if beam_save_path:
-        beam_save_path = beam_save_path.format(args.use_dataset, args.pretrained_model, cfg["scorer"], beam_size)
+        scorer_label = cfg['scorer']
+        if cfg['scorer'] == 'fact_rouge' or cfg['scorer'] == 'fact_mixed':
+            scorer_label = cfg['scorer'] + '-' + str(int(args.w1)) + '-' + str(int(args.w2))
+        beam_save_path = beam_save_path.format(args.use_dataset, args.pretrained_model, scorer_label, beam_size)
 
     parent = os.path.abspath(os.path.join(beam_save_path, os.pardir))
     if not os.path.exists(parent):
@@ -209,7 +212,6 @@ if __name__ == '__main__':
     device_id = 0 if device == "cuda" else -1
 
     args.device = device
-    
     cfg_path = args.c
     if cfg_path is None:
         filenames = os.listdir(CONFIGS_DIR)

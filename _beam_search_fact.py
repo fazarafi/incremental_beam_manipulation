@@ -213,11 +213,11 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
             sequence_output = finalize_beam_search_expand_single_bart(summ_model, params)
 
             last_path = []
-            for idx, (seq, bs) in enumerate(zip(sequence_output["sequences"], sequence_output["sequence_scores"])):
-                # TODO FT fix this beam size-times
-                for x in range(beam_size):
-                    last_path.append((bs.item(), seq))
-
+            for ori_seq in sequence_output["original_sequences"]:
+                for ori in ori_seq:
+                    last_path.append((ori[0], ori[1]))
+                    # print(convert_ids_to_text(bart_tokenizer, ori[1]))
+            
             new_all_paths = last_path
 
 
@@ -225,7 +225,18 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
         for idx in range(batch_size):
             new_paths = new_all_paths[idx*beam_size : (idx+1)*beam_size]
             
-            if (random.randint(0,9) % 2) and len(new_paths[0][1])>3:
+            if (summ_data==None):
+                print("NONE")
+                exit()
+            if (summ_data==""):
+                print("KOSONG")
+                exit()
+            if (summ_data==[]):
+                print("empty list")
+                exit()
+
+            if (summ_data[idx] != None) and (summ_tgt[idx] != ".") \
+                and (random.randint(0,9) % 2) and len(new_paths[0][1])>3:
                 
                 if step in greedy_complete and rescorer is not None:
                     summ_paths = order_beam_after_greedy_complete_bart(rescorer, new_paths, i, max_pred_len, cfg, length_norm_alpha, 
@@ -273,7 +284,10 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     save_final_beam_path_toggle = False
     if save_progress_path is not None:
         # save_progress_file = open(save_progress_path.format(beam_size), 'w+')
-        save_progress_file = open(save_progress_path.format(args.use_dataset, args.pretrained_model, cfg["scorer"], beam_size), 'w+')
+        scorer_label = cfg['scorer']
+        if cfg['scorer'] == 'fact_rouge' or cfg['scorer'] == 'fact_mixed':
+            scorer_label = cfg['scorer'] + '-' + str(int(args.w1)) + '-' + str(int(args.w2))
+        save_progress_file = open(save_progress_path.format(args.use_dataset, args.pretrained_model, scorer_label, beam_size), 'w+')
     else:
         save_progress_file = None
 
@@ -290,12 +304,14 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
     final_beams = []
     if should_save_beams and os.path.exists(save_final_beam_path):
         print("Loading partial beams from", save_final_beam_path)
-        final_beams = pickle.load(open(save_final_beam_path, "rb"))
+        with open(save_final_beam_path, "rb") as file_beam:
+            final_beams = pickle.load(file_beam)
         print("Loaded {} from saved final beams".format(len(final_beams)))
 
     if should_load_beams:
         print("Loading beams from", save_final_beam_path)
-        load_final_beams = pickle.load((open(save_final_beam_path, "rb")))
+        with open(save_final_beam_path, "rb") as file_beam:
+            load_final_beams = pickle.load(file_beam)
 
     start = time()
     print("Start generating")
@@ -417,7 +433,8 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                             else:
                                 splits = save_final_beam_path.split('.')
                                 toggledPath = splits[0] + '.' + splits[1]
-                            pickle.dump(final_beams, open(toggledPath, "wb+"))
+                            with open(toggledPath, "wb+") as file_beam:
+                                pickle.dump(final_beams, file_beam)
 
                     j += 1
                 i += 1
@@ -442,6 +459,8 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                     return_tensors="pt",
                 )
                 
+                # print("TARGET: ", tgt_list)
+
                 src_input_ids = inputs.input_ids.to(summ_beam_search_model.device)
                 attention_mask = inputs.attention_mask.to(summ_beam_search_model.device)
 
@@ -514,14 +533,15 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                 print("LEN FINAL BEAM: ",len(final_beams))
 
                 save_final_beam_path_toggle = not save_final_beam_path_toggle
-                if should_save_beams and (int(idx/batch_size) % 10 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
+                if should_save_beams and (int(idx/batch_size) % 1 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
                     print("Saving final beam states at ", save_final_beam_path)
                     if save_final_beam_path_toggle:
                         toggledPath = save_final_beam_path
                     else:
                         splits = save_final_beam_path.split('.')
                         toggledPath = splits[0] + '.' + splits[1]
-                    pickle.dump(final_beams, open(toggledPath, "wb+"))
+                    with open(toggledPath, "wb+") as file_beam:
+                        pickle.dump(final_beams, file_beam)
             
                 idx += batch_size
                 

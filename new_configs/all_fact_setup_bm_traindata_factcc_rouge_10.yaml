@@ -5,8 +5,6 @@ scorer: 'fact_rouge'
 res_save_format:
   'fact_rouge-ignore-{}.txt'
 beam_sizes:
-  - 3
-  - 5
   - 10
   - 15
 only_rerank_final: false

@@ -3,7 +3,7 @@ tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
 # scorer: 'identity'
 scorer: 'factcc'
 res_save_format:
-  'ignore-{}.txt'
+  'factcc-ignore-{}.txt'
 beam_sizes:
   - 3
   - 5

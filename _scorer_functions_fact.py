@@ -227,7 +227,7 @@ def get_rouge_score_function(pretrained_model, scorer, tokenizer):
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
         summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt)
         scores = scorer.get_scores(summ_hypo, tgt, avg=True)
-        score = scores['rouge-l']['f']
+        score = scores['rouge-1']['f']
         
         return score
     return func
@@ -248,7 +248,7 @@ def get_factcc_score_function(pretrained_model, scorer, tokenizer):
 
 def get_summac_score_function(pretrained_model, tokenizer):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
-        docs = convert_id_to_text(pretrained_model, tokenizer, docs[0])
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
 
         start = time()
@@ -261,7 +261,11 @@ def get_summac_score_function(pretrained_model, tokenizer):
 
 def get_mixed_fact_score_function(pretrained_model, fact_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
-        docs = convert_id_to_text(pretrained_model, tokenizer, docs[0])
+        # print("docs")
+        # print(docs)
+        # print(str(type(docs)))
+        # print(docs[0])
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
         
         start = time()
@@ -282,7 +286,7 @@ def get_mixed_fact_score_function(pretrained_model, fact_scorer, tokenizer, w1, 
 
 def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
-        docs = convert_id_to_text(pretrained_model, tokenizer, docs[0])
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
         summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt)
         
@@ -290,8 +294,10 @@ def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, t
         
         factcc_score = fact_scorer.classify(docs, summ_hypo)
 
+        # print("summ_hypo ", summ_hypo)
+        # print("summ_tgt ", summ_tgt)
         rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
-        rouge_score = rouge_scores['rouge-l']['f']
+        rouge_score = rouge_scores['rouge-1']['f']
         
         w_1 = w1
         w_2 = w2

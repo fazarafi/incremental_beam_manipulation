@@ -1,12 +1,10 @@
 tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
 
 # scorer: 'identity'
-scorer: 'fact_rouge'
+scorer: 'fact_mixed'
 res_save_format:
-  'fact_rouge-ignore-{}.txt'
+  'fact_mixed-ignore-{}.txt'
 beam_sizes:
-  - 3
-  - 5
   - 10
   - 15
 only_rerank_final: false
