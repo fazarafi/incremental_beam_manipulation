@@ -57,6 +57,20 @@ def score_beams_fact(rescorer, beam, da_emb, i, docs, summ_tgt):
         path_scores.append((hyp_score, path))
     return path_scores
 
+def score_beams_fact_batch(rescorer, beam, da_emb, i, docs, summ_tgt):
+    path_scores = []
+    logprobs = [x[0] for x in beam]
+    for path in beam:
+        # lp_pos = sum([1 for lp in logprobs if lp > path[0] + 0.000001])
+        lp_pos = 0
+
+        hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs, summ_tgt)
+        path_scores.append((hyp_score, path))
+    
+    
+
+    return path_scores
+
 recorded_sections = []
 
 
@@ -533,7 +547,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                 print("LEN FINAL BEAM: ",len(final_beams))
 
                 save_final_beam_path_toggle = not save_final_beam_path_toggle
-                if should_save_beams and (int(idx/batch_size) % 1 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
+                if should_save_beams and (int(idx/batch_size) % 2 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
                     print("Saving final beam states at ", save_final_beam_path)
                     if save_final_beam_path_toggle:
                         toggledPath = save_final_beam_path

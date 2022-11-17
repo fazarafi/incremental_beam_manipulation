@@ -8,6 +8,10 @@ from _base_models_fact import TGEN_Reranker, TrainableReranker, SummaryFactTrain
 
 from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls
+
+from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_coco
+
+
 from rouge import Rouge
 
 from pytorch_transformers import BertTokenizer
@@ -261,10 +265,6 @@ def get_summac_score_function(pretrained_model, tokenizer):
 
 def get_mixed_fact_score_function(pretrained_model, fact_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
-        # print("docs")
-        # print(docs)
-        # print(str(type(docs)))
-        # print(docs[0])
         docs = convert_id_to_text(pretrained_model, tokenizer, docs)
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
         
@@ -278,6 +278,28 @@ def get_mixed_fact_score_function(pretrained_model, fact_scorer, tokenizer, w1, 
         w_2 = w2
 
         score = (w_1 * factcc_score + w_2 * summac_score)/(w_1 + w_2)  # TODO FT need to train weight
+        # print("SKOR Fact MIXED: ", str(score))
+
+        return score
+
+    return func
+
+def get_mixed_fact_score_2_function(pretrained_model, coco_params, factcc_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
+        
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
+        summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+        
+        factcc_score = factcc_scorer.classify(docs, summ_hypo)
+        coco_score = evaluate_coco(coco_params, docs, summ_hypo)
+        
+        # print("factcc_score: ", factcc_score)
+        # print("coco_score: ", coco_score)
+        
+        w_1 = w1
+        w_2 = w2
+
+        score = (w_1 * factcc_score + w_2 * coco_score)/(w_1 + w_2) 
         # print("SKOR Fact MIXED: ", str(score))
 
         return score
@@ -333,7 +355,8 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
         return get_summac_score_function(pretrained_model, tokenizer)
     elif scorer == "fact_mixed":
         factcc = FactccCaller()
-        return get_mixed_fact_score_function(pretrained_model, factcc, tokenizer, args.w1, args.w2)
+        coco_params = initialize_coco()
+        return get_mixed_fact_score_2_function(pretrained_model, coco_params, factcc, tokenizer, args.w1, args.w2)
     elif scorer == "rouge":
         rouge = Rouge()
         return get_rouge_score_function(pretrained_model, rouge, tokenizer)
