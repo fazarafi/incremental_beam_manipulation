@@ -21,15 +21,6 @@ BART_XSUM_MODEL = "facebook/bart-large-xsum"
 BART_CNN_MODEL = "facebook/bart-large-cnn"
 
 
-# def list2samples(example):
-#     documents = []
-#     summaries = []
-#     for sample in zip(example["articles"], example["highlight"]):
-#         if len(sample[0]) > 0:
-#             documents += sample[0]
-#             summaries += sample[1]
-#     return {"document": documents, "summary": summaries}
-
 def cnndm_flatten(example):
     return {
         "document": example["article"],

@@ -81,11 +81,6 @@ def load_bart(args):
     document_embedder = summ_data["document"]
     summary_embedder = summ_data["summary"]
 
-    # for batch in summ_data["summary"]:
-    #     print("batch: ", batch)
-    #     document_embedder.append(batch["document"])
-    #     summary_embedder.append(batch["summary"])
-
     summ_model = load_bart_model(args)
 
     return summ_data, summary_embedder, document_embedder, summ_model

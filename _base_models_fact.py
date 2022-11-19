@@ -12,6 +12,7 @@ import numpy as np
 import yaml
 from keras.losses import mean_squared_error, logcosh
 
+import tensorflow as tf
 from tensorflow.test import is_gpu_available
 import keras.backend as K
 from tensorflow.keras.optimizers import Adam, SGD
@@ -50,7 +51,7 @@ def absolute_percentage_error_loss(actual, pred):
 def relative_absolute_error_loss(actual, pred):
     act_rel = actual - K.mean(actual)
     pred_rel = pred - K.mean(pred)
-    return K.mean(K.abs(pred_rel - act_rel), axis=-1)
+    return K.mean(K.abs(pred_rel - tf.cast(act_rel, tf.float32)), axis=-1)
 
 
 def relative_logcosh_loss(actual, pred):
@@ -74,7 +75,7 @@ def get_training_set_min_max_lp(beam_size):
 # TODO Faza disini
 # copied from TrainableReranker
 class SummaryFactTrainableReranker(object):
-    def __init__(self, summary_embedder, document_embedder, cfg_path, tokenizer=None):
+    def __init__(self, summary_embedder, document_embedder, cfg_path, tokenizer=None, pretrained_model='presumm'):
         cfg = yaml.safe_load(open(cfg_path, "r+"))
         self.beam_size = cfg["beam_size"]
         self.embedding_size = cfg['embedding_size'] # embedding for souce document
@@ -101,43 +102,26 @@ class SummaryFactTrainableReranker(object):
         self.output_type = cfg['output_type']
         self.logprob_preprocess_type = cfg["logprob_preprocess_type"]
         self.tokenizer = tokenizer
-        self.set_up_models(cfg)
+        self.set_up_models(cfg, pretrained_model)
 
-    def set_up_models(self, cfg):
-        # vsum = set()
-        # for tokens in self.summary_embedder:
-        #     vsum.update(tokens)
-        # vsum.add(SUMM_PAD_TOK)
-
-        # vdocs = set()
-        # for tokens in self.document_embedder:
-        #     vdocs.update(tokens)
-        # vdocs.add(SUMM_PAD_TOK)
-        
-        # len_vsumm = len(vsum)
-        # len_vdocs = len(vdocs)
-        
-
-        self.tokenizer
+    def set_up_models(self, cfg, pretrained_model):
         len_vsumm = len(self.tokenizer.vocab)
         len_vdocs = len(self.tokenizer.vocab)
 
         # TODO FT add embedding for sentence?
         
-        
-        # max([len(x[0]) for x in tokenised_texts])
-        # print("SUMM MODEL")
-        # print([len(x[0]) for x in self.summary_embedder])
-        len_summ = max([len(x[0]) for x in self.summary_embedder])
-        len_docs = max([len(x[0]) for x in self.document_embedder])
-        
+        if (pretrained_model == 'presumm'):
+            len_summ = max([len(x[0]) for x in self.summary_embedder])
+            len_docs = max([len(x[0]) for x in self.document_embedder])
+        elif (pretrained_model == 'bart'):
+            len_summ = max([len(x) for x in self.summary_embedder.input_ids])
+            len_docs = max([len(x) for x in self.document_embedder.input_ids])
+
         print("TRAINABLE lens")
         print("len_vsumm: ", len_vsumm, ", len_vdocs: ", len_vdocs)
         print("len_summ: ", len_summ, ", len_docs: ", len_docs)
-        # len_sentsumm = self.summary_embedder.sentence_length
-
-        # len_sentdocs = self.document_embedder.sentence_length
-
+        
+        
         # still use lstm?
         lstm_type = LSTM if is_gpu_available() else LSTM
 
