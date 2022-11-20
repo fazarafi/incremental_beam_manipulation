@@ -239,16 +239,6 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
         for idx in range(batch_size):
             new_paths = new_all_paths[idx*beam_size : (idx+1)*beam_size]
             
-            if (summ_data==None):
-                print("NONE")
-                exit()
-            if (summ_data==""):
-                print("KOSONG")
-                exit()
-            if (summ_data==[]):
-                print("empty list")
-                exit()
-
             if (summ_data[idx] != None) and (summ_tgt[idx] != ".") \
                 and (random.randint(0,9) % 2) and len(new_paths[0][1])>3:
                 

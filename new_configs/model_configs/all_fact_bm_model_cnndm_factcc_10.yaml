@@ -12,8 +12,7 @@ show_reranker_post_training_stats: false
 train: true
 output_type: 'fact'
 logprob_preprocess_type: 'categorical_order'
-# beam_size: 30
-beam_size: 3
+beam_size: 10
 dropout: 0.0
 too_close_limit: 0.01
 num_ranks: 4
@@ -23,10 +22,10 @@ only_top: false
 only_bottom: true
 loss_function: 'absolute_error'
 
-reranker_loc: 'models/bart/fact_bm_xsum_fact_mixed_1_1-3'
-beam_save_path: "output_files/saved_beams/z_xsum_bart_fact_full_fact_mixed-1-1_train_3.pickle"
+reranker_loc: 'models/bart/fact_bm_cnndm_factcc-10'
+beam_save_path: "output_files/saved_beams/z_cnndm_bart_fact_full_factcc_train_10.pickle"
 
-scorer: 'fact_mixed'
+scorer: 'factcc'
 
 
 

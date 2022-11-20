@@ -85,14 +85,18 @@ def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt)
         final_score = (w1*factcc_score + w2*coco_score)/(w1+w2)
     elif scorer == 'fact_rouge':
         factcc_score = scorers['factcc'].classify(docs, summ_hypo)
+
+        if (summ_tgt != None) and (summ_tgt != "") and (summ_tgt != "."):
+            rouge_scores = scorers['rouge'].get_scores(summ_hypo, summ_tgt, avg=True)
+            rouge_score = rouge_scores['rouge-1']['f']
+            w1 = args.w1
+            w2 = args.w2
+            final_score = (w1 * factcc_score + w2 * rouge_score)/(w1 + w2)
+        else:
+            print("summ_tgt: ", summ_tgt)
+            final_score = factcc_score
+
         
-        rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
-        rouge_score = rouge_scores['rouge-1']['f']
-        
-        w1 = args.w1
-        w2 = args.w2
-        
-        final_score = (w1 * factcc_score + w2 * rouge_score)/(w1 + w2)
     # elif scorer == 'fact_mixed':
     #     w1 = args.w1
     #     w2 = args.w2

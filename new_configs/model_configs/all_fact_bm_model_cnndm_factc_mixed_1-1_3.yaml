@@ -23,8 +23,8 @@ only_top: false
 only_bottom: true
 loss_function: 'absolute_error'
 
-reranker_loc: 'models/bart/fact_bm_xsum_fact_mixed_1_1-3'
-beam_save_path: "output_files/saved_beams/z_xsum_bart_fact_full_fact_mixed-1-1_train_3.pickle"
+reranker_loc: 'models/bart/fact_bm_cnndm_fact_mixed_1_1-3'
+beam_save_path: "output_files/saved_beams/z_cnndm_bart_fact_full_fact_mixed-1-1_train_3.pickle"
 
 scorer: 'fact_mixed'
 
