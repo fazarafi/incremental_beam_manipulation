@@ -13,6 +13,7 @@ import torch
 from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls, evaluate_batch as summac_evaluate_batch
 from rouge import Rouge
+from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_coco
 
 import pickle
 
@@ -78,6 +79,21 @@ def test_summary_scores_official(args, pred_file_name, scorers):
         print('TEST WITH FactCC: ', final_scores)
         final_results.append(final_scores)
 
+    if 'coco' in scores:
+        final_scores = {}
+        print('TEST WITH CoCo')
+        final_scores["scorer"] = 'coco'
+        coco_params = initialize_coco()
+        
+        results, avg, f1 = evaluate_batch_coco(coco_params, documents_ref, summaries_sys)
+
+        final_scores["raw_scores"] = results
+        final_scores["average"] = avg
+        final_scores["f1_score"] = f1_score
+        
+        print('TEST WITH CoCo: ', final_scores)
+        final_results.append(final_scores)
+    
     if 'summac' in scorers:
         print('TEST WITH SummaC')
         final_scores = {}

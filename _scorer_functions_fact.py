@@ -164,7 +164,7 @@ def get_score_function(scorer, cfg, models, true_vals, beam_size, alpha=0.65):
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))
 
-def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_order=False, pad_symbol=None, len_summ=None, len_docs=None):
+def dget_learned_fact_score_func(trainable_reranker, select_max=False, reverse_order=False, pad_symbol=None, len_summ=None, len_docs=None):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         summ_emb = path[1]
         pads = [pad_symbol] * \
@@ -397,6 +397,6 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
 
         print("len_summ ", len_summ)
         print("len_docs ", len_docs)
-        return get_learned_fact_score_func(learned, select_max, reverse_order, pad_symbol, len_summ, len_docs)
+        return dget_learned_fact_score_func(learned, select_max, reverse_order, pad_symbol, len_summ, len_docs)
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))

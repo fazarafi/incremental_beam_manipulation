@@ -68,7 +68,7 @@ def load_presumm(args, device):
 
     return summ_data, summary_embedder, document_embedder, summ_model, len_summ_data
 
-def load_bart(args):
+def load_bart(args, cfg):
     summ_data = [] 
     summary_embedder = []
     document_embedder = []
@@ -77,8 +77,8 @@ def load_bart(args):
     summ_data = load_bart_dataset(args)
     print("BART: Counting dataset length...")
 
-    #TODO FT REMOVE PLS
-    max_data = 2000
+    max_data = cfg['use_size'] if 'use_size' in cfg else len(summ_data)
+    print("MAX DATA: ", max_data)
     summ_data = summ_data[:max_data]
 
     len_summ_data = len(summ_data)
@@ -181,7 +181,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         
         else:
             raise ValueError('Not saving files any where')
-        save_filename_update = "-".join([str(x) for x in gred_comp]) + save_filename + "." + str(len(preds))
+        save_filename_update = save_filename + "." + str(len(preds))
         save_path = os.path.join(SUMM_RESULTS_DIR, save_filename_update)
 
         cfg["re-lexicalise"] = False # TODO FT check if re-lexicalise not needed
@@ -204,7 +204,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
                     
             with open(save_path + '.raw_src', "w+", encoding='utf-8') as out_file_src:
                 for pa in srcs:
-                    out_file_src.write(str(pa) + '\n')
+                    out_file_src.write(str(''.join(pa.splitlines())) + '\n')
             
             with open(save_path + '.gold', "w+", encoding='utf-8') as out_file_tgt:
                 for pa in tgts:
@@ -213,8 +213,8 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
             
             # print("Summary Score: ", test_summary_scores(args, save_filename_update, cfg['scorer'], mode='test'))
         
-            scorers = ['factcc', 'rouge'] # TODO FT for first step, complete it later
-            complete_scorers = ['factcc', 'rouge', 'summac', 'feqa']
+            scorers = ['factcc', 'rouge',] # TODO FT for first step, complete it later
+            complete_scorers = ['factcc', 'rouge', 'summac', 'feqa', 'coco']
             test_result = test_summary_scores_official(args, save_filename_update, scorers)
             print("Summary Score: ", test_result)
 
@@ -261,7 +261,7 @@ if __name__ == '__main__':
         summ_data, summary_embedder, document_embedder, summ_model, len_summ_data = load_presumm(args, device)
      
     elif (args.pretrained_model == 'bart'):
-        summ_data, summary_embedder, document_embedder, summ_model, lens = load_bart(args)
+        summ_data, summary_embedder, document_embedder, summ_model, lens = load_bart(args, cfg)
         len_summ_data = len(summ_data)
         
     
