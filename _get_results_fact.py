@@ -29,7 +29,7 @@ sys.path.insert(0, './PreSumm/src') # hacky
 # Import BART
 HOME_REPO = "/home/lr/faza.thirafi/raid/repository-kenkyuu-models/"
 sys.path.insert(0, HOME_REPO + "transformers/")
-from _bart_utils import load_bart_dataset, load_bart_model
+from _bart_utils import load_bart_dataset, load_bart_model, get_bart_tokenizer
 
 import logging
 logger = logging.getLogger(__name__)
@@ -77,15 +77,44 @@ def load_bart(args):
     summ_data = load_bart_dataset(args)
     print("BART: Counting dataset length...")
 
+    #TODO FT REMOVE PLS
+    max_data = 2000
+    summ_data = summ_data[:max_data]
+
     len_summ_data = len(summ_data)
+    
     document_embedder = summ_data["document"]
     summary_embedder = summ_data["summary"]
+    
+    tokenizer = get_bart_tokenizer(args)
+    # tokenize all
+    summary_embedder = tokenizer(
+        summary_embedder,
+        truncation=True,
+        return_tensors="np",
+    ).input_ids
+    
+    document_embedder = tokenizer(
+        document_embedder,
+        truncation=True,
+        return_tensors="np",
+    ).input_ids
+
+    max_len_summ = max([len(x) for x in summary_embedder])
+    max_len_docs = max([len(x) for x in document_embedder])
+    
+    lens = {}
+    lens['max_len_docs'] = max_len_docs
+    lens['max_len_summ'] = max_len_summ
+
+    # document_embedder = summ_data["document"]
+    # summary_embedder = summ_data["summary"]
 
     summ_model = load_bart_model(args)
 
-    return summ_data, summary_embedder, document_embedder, summ_model
+    return summ_data, summary_embedder, document_embedder, summ_model, lens
 
-def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder):
+def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, text_embedder, true_vals, absts, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder, lens=None):
     print("Beam size = {} ".format(beam_size))
     beam_save_path = cfg.get('beam_save_path', '')
     if beam_save_path:
@@ -100,12 +129,12 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
 
     # This is a horrible hack
     alpha = 0.65 if 'alpha' not in cfg else cfg['alpha'][beam_size]
-    scorer_func = get_score_function_fact(args, cfg['scorer'], cfg, models, true_vals, beam_size, alpha, summary_embedder, document_embedder)
+    scorer_func = get_score_function_fact(args, cfg['scorer'], cfg, models, true_vals, beam_size, alpha, summary_embedder, document_embedder, lens=lens)
     max_pred_len = MAX_LEN
 
     non_greedy_score_func = None
     if "non_greedy_scorer" in cfg:
-        non_greedy_score_func = get_score_function_fact(args, cfg['non_greedy_scorer'], cfg, models, true_vals, beam_size, alpha)
+        non_greedy_score_func = get_score_function_fact(args, cfg['non_greedy_scorer'], cfg, models, true_vals, beam_size, alpha, lens=lens)
     if "greedy_complete_at" in cfg:
         greedy_complete = cfg["greedy_complete_at"]
     else:
@@ -145,7 +174,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         elif cfg['scorer'] in ['surrogate', 'greedy_decode_surrogate', 'surrogate_rev', 'surrogate_fact']:
             # Example surrogate-regression_reranker_relative-categorical_order_10_10.txt
             surrogate_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
-            save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], surrogate_cfg["output_type"],
+            save_filename = "all_test-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], surrogate_cfg["output_type"],
                                                         surrogate_cfg["logprob_preprocess_type"],
                                                         surrogate_cfg['beam_size'], beam_size)
             save_filename = cfg.get("save_prefix", "") + save_filename
@@ -232,7 +261,7 @@ if __name__ == '__main__':
         summ_data, summary_embedder, document_embedder, summ_model, len_summ_data = load_presumm(args, device)
      
     elif (args.pretrained_model == 'bart'):
-        summ_data, summary_embedder, document_embedder, summ_model = load_bart(args)
+        summ_data, summary_embedder, document_embedder, summ_model, lens = load_bart(args)
         len_summ_data = len(summ_data)
         
     
@@ -251,6 +280,6 @@ if __name__ == '__main__':
                                                args.batch_size, device, 
                                                shuffle=False, is_test=False)
         print("Dataset loading time: ", time() - st)
-        do_beam_search_fact(args, beam_size, cfg, None, None, None, None, None, None, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder)
+        do_beam_search_fact(args, beam_size, cfg, None, None, None, None, None, None, summ_model, summ_data, len_summ_data, document_embedder, summary_embedder, lens=lens)
 
     # print_results(args)

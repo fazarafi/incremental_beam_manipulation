@@ -15,6 +15,7 @@ from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_coco
 from rouge import Rouge
 
 from pytorch_transformers import BertTokenizer
+import torch
 
 from time import time 
 
@@ -163,10 +164,10 @@ def get_score_function(scorer, cfg, models, true_vals, beam_size, alpha=0.65):
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))
 
-def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_order=False, summ_symbols=None, len_summ=None, len_docs=None):
+def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_order=False, pad_symbol=None, len_summ=None, len_docs=None):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         summ_emb = path[1]
-        pads = [summ_symbols[SUMM_PAD_TOK]] * \
+        pads = [pad_symbol] * \
                (len_summ - len(summ_emb))
         if trainable_reranker.logprob_preprocess_type == 'categorical_order':
             logprob_rank = logprob * trainable_reranker.beam_size // beam_size
@@ -174,11 +175,20 @@ def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_or
         else:
             logprob_val = [path[0]]
 
-        summ_seqs = [pads + summ_emb.cpu().tolist()]
+        # print("summ_emb: ", summ_emb)
+        if (type(summ_emb)==torch.Tensor):
+            summ_emb = summ_emb.cpu().tolist()
+        
+        summ_seqs = [pads + summ_emb]
         summ_seqs = [summ_seqs[0][:len_summ]]
 
-        docs_emb = docs[0].cpu().tolist()
-        docs_pads = [summ_symbols[SUMM_PAD_TOK]] * \
+        # print("docs: ", docs)
+        if (type(docs) == torch.Tensor):
+            docs_emb = docs[0].cpu().tolist()
+        else:
+            docs_emb = docs
+        
+        docs_pads = [pad_symbol] * \
                (len_docs - len(docs_emb))
         docs_seqs = [docs_pads + docs_emb]
         docs_seqs = [docs_seqs[0][:len_docs]]
@@ -331,7 +341,7 @@ def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, t
 
     return func
 
-def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, alpha=0.65, summary_embedder=None, document_embedder=None):
+def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, alpha=0.65, summary_embedder=None, document_embedder=None, lens=None):
     print("Using Scorer: {}".format(scorer))
 
     pretrained_model = args.pretrained_model
@@ -368,13 +378,25 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
         print("TODO")
     elif scorer == "surrogate_fact":
         # TODO FT use bart tokenizer below
-        learned = SummaryFactTrainableReranker(summary_embedder, document_embedder, cfg['trainable_reranker_config'], tokenizer=tokenizer)
+        learned = SummaryFactTrainableReranker(summary_embedder, document_embedder, cfg['trainable_reranker_config'], tokenizer=tokenizer, pretrained_model=args.pretrained_model)
         learned.load_model()
         select_max = cfg.get("order_by_max_class", False)
         reverse_order = scorer == 'surrogate_rev'
+        
+        if (pretrained_model == 'presumm'):
+            len_summ = max([len(x[0]) for x in summary_embedder])
+            len_docs = max([len(x[0]) for x in document_embedder])
+            pad_symbol = symbols[SUMM_PAD_TOK]
 
-        len_summ = max([len(x[0]) for x in summary_embedder])
-        len_docs = max([len(x[0]) for x in document_embedder])
-        return get_learned_fact_score_func(learned, select_max, reverse_order, symbols, len_summ, len_docs)
+        elif (pretrained_model == 'bart'):
+            # len_summ = lens['max_len_summ']
+            # len_docs = lens['max_len_docs']
+            len_summ = max([len(x) for x in summary_embedder])
+            len_docs = max([len(x) for x in document_embedder])
+            pad_symbol = 1 # TODO put it in more elegant way
+
+        print("len_summ ", len_summ)
+        print("len_docs ", len_docs)
+        return get_learned_fact_score_func(learned, select_max, reverse_order, pad_symbol, len_summ, len_docs)
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))

@@ -495,13 +495,13 @@ elif (args.pretrained_model == 'bart'):
         summary_embedder,
         truncation=True,
         return_tensors="np",
-    )
+    ).input_ids
     
     document_embedder = tokenizer(
         document_embedder,
         truncation=True,
         return_tensors="np",
-    )
+    ).input_ids
     
     batch_list = summ_data[:max_data]    
     

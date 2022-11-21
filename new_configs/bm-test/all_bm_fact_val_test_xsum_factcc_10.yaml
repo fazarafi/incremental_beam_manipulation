@@ -1,20 +1,18 @@
 tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
 fact_config: ""
 trainable_reranker_config:
-  "new_configs/model_configs/all_fact_bm_model_xsum_factcc_3.yaml"
+  "new_configs/model_configs/all_fact_bm_model_xsum_factcc_10.yaml"
 scorer: 'surrogate_fact'
 beam_sizes:
-    - 3
+    # - 3
     # - 5
-    # - 10
+    - 10
     # - 15
 only_rerank_final: true
 greedy_complete_at:
-  - - 3
-    - 5
-    - 10
+  - - 10
     - 15 
 coarse_ranker: true
 also_rerank_final: true
 save_prefix: "all_"
-summary_dataset: "xsum-val-3"
+summary_dataset: "xsum-val-10"

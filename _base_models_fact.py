@@ -114,8 +114,8 @@ class SummaryFactTrainableReranker(object):
             len_summ = max([len(x[0]) for x in self.summary_embedder])
             len_docs = max([len(x[0]) for x in self.document_embedder])
         elif (pretrained_model == 'bart'):
-            len_summ = max([len(x) for x in self.summary_embedder.input_ids])
-            len_docs = max([len(x) for x in self.document_embedder.input_ids])
+            len_summ = max([len(x) for x in self.summary_embedder])
+            len_docs = max([len(x) for x in self.document_embedder])
 
         print("TRAINABLE lens")
         print("len_vsumm: ", len_vsumm, ", len_vdocs: ", len_vdocs)
