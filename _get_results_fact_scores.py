@@ -13,7 +13,7 @@ import torch
 from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls, evaluate_batch as summac_evaluate_batch
 from rouge import Rouge
-from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_coco
+from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_batch_coco
 
 import pickle
 
@@ -52,6 +52,9 @@ def test_summary_scores_official(args, pred_file_name, scorers):
     print("len(documents_ref), len(summaries_ref), len(summaries_sys):", len(documents_ref)," ", len(summaries_ref)," ", len(summaries_sys))
     data_length = min(len(documents_ref), len(summaries_ref), len(summaries_sys))
 
+    if (not(args.use_size == 0) and args.use_size < data_length ):
+        data_length = args.use_size
+
     # equalify all dataset arrays
     documents_ref = documents_ref[:data_length]
     summaries_ref = summaries_ref[:data_length]
@@ -79,13 +82,13 @@ def test_summary_scores_official(args, pred_file_name, scorers):
         print('TEST WITH FactCC: ', final_scores)
         final_results.append(final_scores)
 
-    if 'coco' in scores:
+    if 'coco' in scorers:
         final_scores = {}
         print('TEST WITH CoCo')
         final_scores["scorer"] = 'coco'
         coco_params = initialize_coco()
         
-        results, avg, f1 = evaluate_batch_coco(coco_params, documents_ref, summaries_sys)
+        results, avg, f1_score = evaluate_batch_coco(coco_params, documents_ref, summaries_sys)
 
         final_scores["raw_scores"] = results
         final_scores["average"] = avg
@@ -116,7 +119,7 @@ def test_summary_scores_official(args, pred_file_name, scorers):
         print('TEST WITH FEQA: ', final_scores)
         final_results.append(final_scores)
     
-    return final_results
+    return final_results, data_length
 
 def print_results(args, summ_scorers=None):
     if summ_scorers == None:
@@ -170,7 +173,7 @@ if __name__ == "__main__":
 
     pred_file_name = args.pred_file
     
-    result = test_summary_scores_official(args, pred_file_name, scorers)    
+    result, data_length = test_summary_scores_official(args, pred_file_name, scorers)    
     
     pred_file = os.path.join(SUMM_RESULTS_DIR, pred_file_name)
     
@@ -180,3 +183,5 @@ if __name__ == "__main__":
     with open(pred_file + '.test_result_cust_' + get_timestamp_file(), "w+", encoding='utf-8') as out_file_result:
         for res in result:
             out_file_result.write(str(res) + '\n')
+        out_file_result.write("use_size: "+ str(pred_file_name) + '\n')
+        out_file_result.write("use_size: "+ str(data_length) + '\n')

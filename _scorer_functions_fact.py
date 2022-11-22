@@ -175,14 +175,12 @@ def dget_learned_fact_score_func(trainable_reranker, select_max=False, reverse_o
         else:
             logprob_val = [path[0]]
 
-        # print("summ_emb: ", summ_emb)
         if (type(summ_emb)==torch.Tensor):
             summ_emb = summ_emb.cpu().tolist()
         
         summ_seqs = [pads + summ_emb]
         summ_seqs = [summ_seqs[0][:len_summ]]
 
-        # print("docs: ", docs)
         if (type(docs) == torch.Tensor):
             docs_emb = docs[0].cpu().tolist()
         else:
@@ -193,10 +191,15 @@ def dget_learned_fact_score_func(trainable_reranker, select_max=False, reverse_o
         docs_seqs = [docs_pads + docs_emb]
         docs_seqs = [docs_seqs[0][:len_docs]]
 
+        # print("docs_seqs: ", docs_seqs)
+        # print("summ_seqs: ", summ_seqs)
+        
         pred = trainable_reranker.predict_fact_score(
             np.array(summ_seqs),
             np.array(docs_seqs),
             np.array(logprob_val))
+
+        # print("PRED: ", pred)
 
         if trainable_reranker.output_type in ["regression_ranker", "regression_reranker_relative"]:
             return 1 - pred[0][0]
@@ -221,9 +224,18 @@ def dget_learned_fact_score_func(trainable_reranker, select_max=False, reverse_o
 
 def convert_id_to_text(pretrained_model, tokenizer, token_ids):
     text = ""
-
+    print("token_ids: ", token_ids)
+    print(type(token_ids))
+        
     if type(token_ids) is str:
         return token_ids
+
+    #handle more gracefully
+    if (type(token_ids)==tuple):
+        token_ids = token_ids[1]
+    
+    if (type(token_ids)==torch.Tensor):
+        token_ids = token_ids.flatten()
 
     if (pretrained_model=='presumm'):
         # Convert token_ids to text for factual consistency scoring
@@ -232,7 +244,7 @@ def convert_id_to_text(pretrained_model, tokenizer, token_ids):
         text = text.replace('[unused0]', '').replace('[unused3]', '').replace('[PAD]', '').replace('[unused1]', '').replace(r' +', ' ').replace(' [unused2] ', '<q>').replace('[unused2]', '').strip()
     elif (pretrained_model=='bart'):
         text = convert_ids_to_text(tokenizer, token_ids)
-    
+    print("text ", text)
     return text
 
 

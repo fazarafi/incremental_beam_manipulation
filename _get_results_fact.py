@@ -213,9 +213,9 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
             
             # print("Summary Score: ", test_summary_scores(args, save_filename_update, cfg['scorer'], mode='test'))
         
-            scorers = ['factcc', 'rouge',] # TODO FT for first step, complete it later
+            scorers = ['factcc', 'rouge', 'coco'] # TODO FT for first step, complete it later
             complete_scorers = ['factcc', 'rouge', 'summac', 'feqa', 'coco']
-            test_result = test_summary_scores_official(args, save_filename_update, scorers)
+            test_result,_ = test_summary_scores_official(args, save_filename_update, scorers)
             print("Summary Score: ", test_result)
 
             with open(save_path + '.test_result', "w+", encoding='utf-8') as out_file_result:

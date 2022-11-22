@@ -18,3 +18,5 @@ coarse_ranker: true
 also_rerank_final: true
 save_prefix: "all_"
 summary_dataset: "xsum-val-3"
+
+use_size: 2000

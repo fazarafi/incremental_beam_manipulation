@@ -11,9 +11,11 @@ beam_sizes:
 only_rerank_final: true
 greedy_complete_at:
   - - 5
-    - 10
-    - 15 
+    # - 10
+    # - 15 
 coarse_ranker: true
 also_rerank_final: true
 save_prefix: "all_"
 summary_dataset: "xsum-val-5"
+
+use_size: 5000
