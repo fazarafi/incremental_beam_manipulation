@@ -66,13 +66,9 @@ def score_beams_fact_batch(rescorer, beam, da_emb, i, docs, summ_tgt):
 
         hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs, summ_tgt)
         path_scores.append((hyp_score, path))
-    
-    
-
     return path_scores
 
 recorded_sections = []
-
 
 # Ignore flags is a horrible hack to get non-greedy-rescorers not to use sections/pairwise flags of greedy
 # TODO pass in the value of the flags and then can controll these at a level where can distinguish between
@@ -141,9 +137,7 @@ def order_beam_after_greedy_complete_bart(rescorer, beam, max_pred_len, cfg, len
     summ_data=None, summ_tgt=None, summ_model=None, beam_size=None,  bart_params=None, **model_kwargs):
     finished_beam = beam.copy()
     toks_pred_so_far = max([len(x[1]) for x in beam])
-    # print("da: ", summ_data)
-    # print("tg: ", summ_tgt)
-    # exit()
+    
     for step in range(max_pred_len - toks_pred_so_far):
         
         finished_beam, bart_params, model_kwargs = \
@@ -161,16 +155,13 @@ def order_beam_after_greedy_complete_bart(rescorer, beam, max_pred_len, cfg, len
             finished_beam = last_path
             break
 
-        # if all([p[1][-1] in SUMM_END_TOKENS for p in finished_beam]):
-        #     break
-    print("finished_beam: ", finished_beam)
 
     batch_size = int(len(finished_beam)/beam_size)
     results = []
     for idx in range(batch_size):
         finished_beam_el = finished_beam[idx*beam_size : (idx+1)*beam_size]
         result = order_beam_acording_to_rescorer(rescorer, finished_beam_el, None, None, cfg, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
-        results.append(result)
+        results += result
 
     return results
 
@@ -263,7 +254,6 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
                 
                 if step in greedy_complete and rescorer is not None:
                     # use new_all_paths as it uses all
-                    print("dari atas summ: ", summ_data)
                     summ_paths = order_beam_after_greedy_complete_bart(rescorer, new_all_paths, max_pred_len, cfg, length_norm_alpha, 
                                                             summ_data=summ_data, summ_tgt=summ_tgt, summ_model=summ_model, beam_size=beam_size, bart_params=params, **model_kwargs)
                     total_summ_paths = total_summ_paths + summ_paths
@@ -280,12 +270,8 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
             
             summ_paths = summ_paths[:beam_size]
 
-            
-
             total_summ_paths = total_summ_paths + summ_paths
             
-            
-
         summ_paths = total_summ_paths
 
         if save_progress_file:
@@ -532,12 +518,13 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                         batch_size=batch_size,
                         **model_kwargs
                     )
-                # print("paths: ", paths)
-
+                
                 # TODO FT take for each batch_size
                 for i, (src, tgt) in enumerate(zip(src_list, tgt_list)): 
                     sub_paths = paths[i*beam_size : (i+1)*beam_size]
-
+                    # print("batch size: ", len(src_list))
+                    # print("sub: ",len(sub_paths), " - beam:", beam_size)
+                    
                     # print("pertama subpath: ", sub_paths)
 
                     final_beams.append(sub_paths)
@@ -561,15 +548,19 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                         # print("src tok: ", src_tokens)
                         # print("tgt tok: ", tgt_tokens)
 
+                        # print("sub_paths SYEBELUM ", sub_paths)
                         sub_paths = order_beam_acording_to_rescorer(scorer, sub_paths, None, i, cfg, summ_data=src_tokens, summ_tgt=tgt_tokens)
                         
                     # A hack to handle the what we need right now - this should be updated
                     elif non_greedy_rescorer:
                         sub_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, sub_paths, None, i, cfg, ignore_flags=True, summ_data=src, summ_tgt=tgt)
 
-                    # print("sub_paths: ", sub_paths)
+                    # print("AFTER sub_paths! ", sub_paths)
                     best_path = sub_paths[0]
                     
+                    if (not(type(best_path)==tuple)):
+                        best_path = best_path[0]
+                        # print("masuk: ",best_path)
                     pred_toks = convert_ids_to_text(bart_tokenizer, best_path[1])
 
                     src_toks = convert_ids_to_text(bart_tokenizer, src) if type(src) is not str else src
@@ -579,8 +570,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                     src_data.append(src_toks)
                     tgt_data.append(tgt_toks)
 
-                print("LEN FINAL BEAM: ",len(final_beams))
-
+                
                 save_final_beam_path_toggle = not save_final_beam_path_toggle
                 if should_save_beams and (int(idx/batch_size) % 2 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
                     print("Saving final beam states at ", save_final_beam_path)
@@ -597,7 +587,6 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
 
     
     print("*** Time to generate text =", time() - start)
-
 
     if recorded_sections:
         print("SECTIONS:", Counter(recorded_sections))

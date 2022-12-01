@@ -94,6 +94,7 @@ def load_bart_model(args, model_name=BART_XSUM_MODEL):
     return model
 
 def convert_ids_to_text(tokenizer, ids):
+    # print("ids ", ids)
     text = tokenizer.decode(ids, skip_special_tokens=True)
 
     return text

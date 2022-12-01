@@ -223,14 +223,11 @@ def dget_learned_fact_score_func(trainable_reranker, select_max=False, reverse_o
 
 
 def convert_id_to_text(pretrained_model, tokenizer, token_ids):
-    text = ""
-    print("token_ids: ", token_ids)
-    print(type(token_ids))
-        
+    text = ""    
     if type(token_ids) is str:
         return token_ids
 
-    #handle more gracefully
+    # handle more gracefully
     if (type(token_ids)==tuple):
         token_ids = token_ids[1]
     
@@ -244,7 +241,7 @@ def convert_id_to_text(pretrained_model, tokenizer, token_ids):
         text = text.replace('[unused0]', '').replace('[unused3]', '').replace('[PAD]', '').replace('[unused1]', '').replace(r' +', ' ').replace(' [unused2] ', '<q>').replace('[unused2]', '').strip()
     elif (pretrained_model=='bart'):
         text = convert_ids_to_text(tokenizer, token_ids)
-    print("text ", text)
+    # print("text ", text)
     return text
 
 

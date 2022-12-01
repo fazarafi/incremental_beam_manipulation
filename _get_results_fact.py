@@ -77,7 +77,7 @@ def load_bart(args, cfg):
     summ_data = load_bart_dataset(args)
     print("BART: Counting dataset length...")
 
-    max_data = cfg['use_size'] if 'use_size' in cfg else len(summ_data)
+    max_data = args.use_size if args.use_size > 0 else len(summ_data)
     print("MAX DATA: ", max_data)
     summ_data = summ_data[:max_data]
 
