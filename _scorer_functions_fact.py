@@ -250,7 +250,7 @@ def get_rouge_score_function(pretrained_model, scorer, tokenizer):
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
         summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt)
         scores = scorer.get_scores(summ_hypo, tgt, avg=True)
-        score = scores['rouge-1']['f']
+        score = scores['rouge-2']['f']
         
         return score
     return func
@@ -338,7 +338,7 @@ def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, t
         # print("summ_hypo ", summ_hypo)
         # print("summ_tgt ", summ_tgt)
         rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
-        rouge_score = rouge_scores['rouge-1']['f']
+        rouge_score = rouge_scores['rouge-2']['f']
         
         w_1 = w1
         w_2 = w2
