@@ -5,7 +5,7 @@ scorer: 'rouge'
 res_save_format:
   'rouge2-ignore-{}.txt'
 beam_sizes:
-  - 5
+  # - 5
   - 10
   - 15
 only_rerank_final: false

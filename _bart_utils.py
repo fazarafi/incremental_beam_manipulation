@@ -9,6 +9,7 @@ sys.path.insert(0, HOME_REPO + "transformers/src")
 import datasets
 
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, AutoModelForCausalLM
+import torch
 
 BART_ENCODER_MAX_LENGTH = 256
 BART_DECODER_MAX_LENGTH = 64
@@ -115,7 +116,14 @@ def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, summ_data,
 
     return updated_summ_paths, return_params, model_kwargs
 
-def finalize_beam_search_expand_single_bart(summ_model, params):
+def finalize_beam_search_expand_single_bart(summ_model, summ_paths, params):
+    inp_ids = []
+    for _, path in summ_paths:
+        inp_ids.append(path.unsqueeze(0))
+    input_path = torch.cat(inp_ids, dim=0)
+    # override params["input_ids"] with summ_paths
+    params["input_ids"] = input_path
+    
     result = summ_model.finalize_beam_search_expand_single(
         params["beam_scorer"],
         params["input_ids"],

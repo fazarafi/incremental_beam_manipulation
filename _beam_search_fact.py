@@ -145,7 +145,7 @@ def order_beam_after_greedy_complete_bart(rescorer, beam, max_pred_len, cfg, len
 
         
         if (bart_params['this_peer_finished']):
-            sequence_output = finalize_beam_search_expand_single_bart(summ_model, bart_params)
+            sequence_output = finalize_beam_search_expand_single_bart(summ_model, finished_beam, bart_params)
 
             last_path = []
             for ori_seq in sequence_output["original_sequences"]:
@@ -234,7 +234,7 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
         # use scoring when len > 3
         
         if (params['this_peer_finished']):
-            sequence_output = finalize_beam_search_expand_single_bart(summ_model, params)
+            sequence_output = finalize_beam_search_expand_single_bart(summ_model, new_all_paths, params)
 
             last_path = []
             for ori_seq in sequence_output["original_sequences"]:
