@@ -164,7 +164,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         print("[DEBUG FT] preds AFTER: ", len(preds))
         if "res_save_format" in cfg:
             save_filename = cfg["res_save_format"].format(beam_size)
-        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac', 'fact_rouge']:
+        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac', 'fact_rouge', 'rouge']:
             fact_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
             save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], fact_cfg["output_type"],
                                                         fact_cfg["logprob_preprocess_type"],
@@ -213,9 +213,9 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
             
             # print("Summary Score: ", test_summary_scores(args, save_filename_update, cfg['scorer'], mode='test'))
         
-            scorers = ['factcc', 'rouge', 'coco'] # TODO FT for first step, complete it later
+            scorers = ['factcc', 'rouge', 'coco', 'summac'] # TODO FT for first step, complete it later
             complete_scorers = ['factcc', 'rouge', 'summac', 'feqa', 'coco']
-            test_result,_ = test_summary_scores_official(args, save_filename_update, scorers)
+            test_result, _ = test_summary_scores_official(args, save_filename_update, scorers)
             print("Summary Score: ", test_result)
 
             with open(save_path + '.test_result', "w+", encoding='utf-8') as out_file_result:

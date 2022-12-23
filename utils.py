@@ -433,7 +433,7 @@ def get_args_presumm(parser):
     parser.add_argument('-pretrained_model', default='presumm', type=str, choices=['presumm', 'bart'])
     parser.add_argument("-batch_size", default=1, type=int)
     
-    parser.add_argument("-use_size", default=0, type=int)
+    parser.add_argument("-use_size", default=-99, type=int)
     
     return parser
 

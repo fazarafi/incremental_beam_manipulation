@@ -90,9 +90,9 @@ def test_summary_scores_official(args, pred_file_name, scorers):
         
         results, avg, f1_score = evaluate_batch_coco(coco_params, documents_ref, summaries_sys)
 
-        final_scores["raw_scores"] = results
-        final_scores["average"] = avg
         final_scores["f1_score"] = f1_score
+        # final_scores["raw_scores"] = results
+        final_scores["average"] = avg
         
         print('TEST WITH CoCo: ', final_scores)
         final_results.append(final_scores)

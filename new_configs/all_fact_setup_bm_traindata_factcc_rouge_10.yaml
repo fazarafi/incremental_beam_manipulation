@@ -8,7 +8,7 @@ beam_sizes:
   - 10
   - 15
 only_rerank_final: false
-beam_save_path: "output_files/saved_beams/z_{}_{}_fact_full_{}_train_{}.pickle"
-# "output_files/saved_beams/z_xsum_bart_fact_factcc_full_{}_train_{}.pickle"
+beam_save_path: "output_files/saved_beams/z12_{}_{}_fact_full_{}_train_{}.pickle"
+# "output_files/saved_beams/z12_xsum_bart_fact_factcc_full_{}_train_{}.pickle"
 get_train_beam: true
-save_progress_file: "output_files/saved_beams/z_{}_{}_fact_full_{}_train_{}_progress.pickle"
+save_progress_file: "output_files/saved_beams/z12_{}_{}_fact_full_{}_train_{}_progress.pickle"

@@ -68,7 +68,6 @@ def get_length_normalised_score_func(alpha):
 
     return func
 
-
 # def get_greedy_decode_score_func(models, final_scorer, max_length_out, save_scores=None):
 #     def func(path, logprob, da_emb, da_i, enc_outs):
 #         path = models.naive_complete_greedy(path, enc_outs, max_length_out - len(path[1]))
@@ -79,7 +78,6 @@ def get_length_normalised_score_func(alpha):
 #         return score
 #
 #     return func
-
 
 def get_oracle_score_func(bleu, true_vals, text_embedder, reverse):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
@@ -249,7 +247,7 @@ def get_rouge_score_function(pretrained_model, scorer, tokenizer):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
         summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt)
-        scores = scorer.get_scores(summ_hypo, tgt, avg=True)
+        scores = scorer.get_scores(summ_hypo, summ_tgt, avg=True)
         score = scores['rouge-2']['f']
         
         return score
@@ -319,7 +317,7 @@ def get_mixed_fact_score_2_function(pretrained_model, coco_params, factcc_scorer
         w_2 = w2
 
         score = (w_1 * factcc_score + w_2 * coco_score)/(w_1 + w_2) 
-        # print("SKOR Fact MIXED: ", str(score))
+        # print("SKOR Fact MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
 
         return score
 

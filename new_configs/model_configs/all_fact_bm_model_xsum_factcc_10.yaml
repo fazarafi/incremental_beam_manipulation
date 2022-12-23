@@ -23,8 +23,8 @@ only_top: false
 only_bottom: true
 loss_function: 'absolute_error'
 
-reranker_loc: 'models/bart/fact_bm_xsum_factcc-10'
-beam_save_path: "output_files/saved_beams/z_xsum_bart_fact_full_factcc_train_10.pickle"
+reranker_loc: 'models/bart/z12_fact_bm_xsum_factcc-10'
+beam_save_path: "output_files/saved_beams/z12_xsum_bart_fact_full_factcc_train_10.pickle"
 
 scorer: 'factcc'
 

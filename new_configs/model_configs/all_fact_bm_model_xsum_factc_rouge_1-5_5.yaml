@@ -22,8 +22,8 @@ merge_middle_sections: false
 only_top: false
 only_bottom: true
 loss_function: 'absolute_error'
-reranker_loc: 'models/bart/fact_bm_xsum_fact_rouge_1_5-5'
-beam_save_path: "output_files/saved_beams/z_xsum_bart_fact_full_fact_rouge-1-5_train_5.pickle"
+reranker_loc: 'models/bart/z12_fact_bm_xsum_fact_rouge_1_5-5'
+beam_save_path: "output_files/saved_beams/z12_xsum_bart_fact_full_fact_rouge-1-5_train_5.pickle"
 
 scorer: 'fact_rouge'
 

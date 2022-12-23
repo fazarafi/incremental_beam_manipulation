@@ -16,5 +16,5 @@ greedy_complete_at:
     - 15 
 coarse_ranker: true
 also_rerank_final: true
-save_prefix: "all_"
+save_prefix: "z12_all_"
 summary_dataset: "cnndm-test-3"
