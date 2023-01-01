@@ -10,8 +10,6 @@ from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls
 
 from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_coco
-
-
 from rouge import Rouge
 
 from pytorch_transformers import BertTokenizer
@@ -19,7 +17,7 @@ import torch
 
 from time import time 
 
-from _bart_utils import get_bart_tokenizer, convert_ids_to_text
+from _bart_utils import get_bart_tokenizer, convert_ids_to_text, BART_PAD_TOKEN
 
 def get_regressor_score_func(regressor, text_embedder, w2v):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
@@ -162,7 +160,7 @@ def get_score_function(scorer, cfg, models, true_vals, beam_size, alpha=0.65):
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))
 
-def dget_learned_fact_score_func(trainable_reranker, select_max=False, reverse_order=False, pad_symbol=None, len_summ=None, len_docs=None):
+def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_order=False, pad_symbol=None, len_summ=None, len_docs=None):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         summ_emb = path[1]
         pads = [pad_symbol] * \
@@ -375,12 +373,12 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
         coco_params = initialize_coco()
         return get_mixed_fact_score_2_function(pretrained_model, coco_params, factcc, tokenizer, args.w1, args.w2)
     elif scorer == "rouge":
-        rouge = Rouge()
-        return get_rouge_score_function(pretrained_model, rouge, tokenizer)
+        rouge_model = Rouge()
+        return get_rouge_score_function(pretrained_model, rouge_model, tokenizer)
     elif scorer == "fact_rouge":
         factcc = FactccCaller()
-        rouge = Rouge()
-        return get_rouge_fact_score_function(pretrained_model, factcc, rouge, tokenizer, args.w1, args.w2)
+        rouge_model = Rouge()
+        return get_rouge_fact_score_function(pretrained_model, factcc, rouge_model, tokenizer, args.w1, args.w2)
     elif scorer == "weighted_fact":
         print("TODO")
     elif scorer == "surrogate_fact":
@@ -400,10 +398,10 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
             # len_docs = lens['max_len_docs']
             len_summ = max([len(x) for x in summary_embedder])
             len_docs = max([len(x) for x in document_embedder])
-            pad_symbol = 1 # TODO put it in more elegant way
+            pad_symbol = BART_PAD_TOKEN
 
         print("len_summ ", len_summ)
         print("len_docs ", len_docs)
-        return dget_learned_fact_score_func(learned, select_max, reverse_order, pad_symbol, len_summ, len_docs)
+        return get_learned_fact_score_func(learned, select_max, reverse_order, pad_symbol, len_summ, len_docs)
     else:
         raise ValueError("Unknown Scorer {}".format(cfg['scorer']))

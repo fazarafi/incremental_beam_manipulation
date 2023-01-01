@@ -163,7 +163,8 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         preds = [[x for x in pred if x not in [SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK]] for pred in preds] # TODO FT evaluate this whether it's okay to use or not
         print("[DEBUG FT] preds AFTER: ", len(preds))
         if "res_save_format" in cfg:
-            save_filename = cfg["res_save_format"].format(beam_size)
+            suffix_str = args.use_dataset + '_' + args.pretrained_model + '_' + str(beam_size)
+            save_filename = cfg["res_save_format"].format(suffix_str)
         elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac', 'fact_rouge', 'rouge']:
             fact_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
             save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], fact_cfg["output_type"],

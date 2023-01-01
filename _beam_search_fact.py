@@ -55,6 +55,7 @@ def score_beams_fact(rescorer, beam, da_emb, i, docs, summ_tgt):
 
         hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs, summ_tgt)
         path_scores.append((hyp_score, path))
+        print(path_scores)
     return path_scores
 
 def score_beams_fact_batch(rescorer, beam, da_emb, i, docs, summ_tgt):
@@ -106,6 +107,7 @@ def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=Non
         print("TODO FT removed pairwise")
     else:
         path_scores = score_beams_fact(rescorer, beam, da_emb, i, summ_data, summ_tgt)
+        print("[FT DEBUG] path_scores: ", str(path_scores))
 
     order = sorted(enumerate(path_scores), reverse=True, key=lambda x: x[1][0])
 
@@ -150,7 +152,7 @@ def order_beam_after_greedy_complete_bart(rescorer, beam, max_pred_len, cfg, len
             last_path = []
             for ori_seq in sequence_output["original_sequences"]:
                 for ori in ori_seq:
-                    last_path.append((ori[0], ori[1]))
+                    last_path.append((ori[0], ori[1], ori[2]))
                     # print(convert_ids_to_text(bart_tokenizer, ori[1]))
             finished_beam = last_path
             break
@@ -161,6 +163,11 @@ def order_beam_after_greedy_complete_bart(rescorer, beam, max_pred_len, cfg, len
     for idx in range(batch_size):
         finished_beam_el = finished_beam[idx*beam_size : (idx+1)*beam_size]
         result = order_beam_acording_to_rescorer(rescorer, finished_beam_el, None, None, cfg, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
+        
+        # TODO FT remove below for debug only
+        result = finished_beam_el
+        print("HEYYYYY")
+
         results += result
 
     return results
@@ -239,7 +246,7 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
             last_path = []
             for ori_seq in sequence_output["original_sequences"]:
                 for ori in ori_seq:
-                    last_path.append((ori[0], ori[1]))
+                    last_path.append((ori[0], ori[1], ori[2]))
                     # print(convert_ids_to_text(bart_tokenizer, ori[1]))
             
             new_all_paths = last_path
@@ -253,6 +260,7 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
                 and (random.randint(0,9) % 2) and len(new_paths[0][1])>3:
                 
                 if step in greedy_complete and rescorer is not None:
+                    print("DEBUG1")
                     # use new_all_paths as it uses all
                     summ_paths = order_beam_after_greedy_complete_bart(rescorer, new_all_paths, max_pred_len, cfg, length_norm_alpha, 
                                                             summ_data=summ_data, summ_tgt=summ_tgt, summ_model=summ_model, beam_size=beam_size, bart_params=params, **model_kwargs)
@@ -260,11 +268,16 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
                     break                                                
                     
                 elif step not in greedy_complete and non_greedy_rescorer is not None and cfg['non_greedy_scorer'] != 'identity':
+                    print("DEBUG2")
                     summ_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, None, i, cfg, ignore_flags=True, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
                 elif not greedy_complete and rescorer is not None and cfg['scorer'] != 'identity':
+                    print("DEBUG3")
                     summ_paths = order_beam_acording_to_rescorer(rescorer, new_paths, None, i, cfg, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
                 else:
+                    print("DEBUG4")
+                    # print("new_paths: ", new_paths[0:2])
                     summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
+                    # summ_paths = new_paths
             else:
                 summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
             
@@ -485,14 +498,25 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                 # summ_enc_last_state = summ_enc_outs[1:]
 
                 summ_paths = []
-                for input_id in params["input_ids"]:
+                # for input_id in params["input_ids"]:
+                #     summ_paths.append((
+                #         log(1.0),
+                #         torch.tensor(
+                #             [input_id],
+                #             dtype=torch.long,
+                #             device=device
+                #         )
+                #     ))
+
+                for input_id, beam_score in zip(params["input_ids"], params['beam_scores']):
                     summ_paths.append((
                         log(1.0),
                         torch.tensor(
                             [input_id],
                             dtype=torch.long,
                             device=device
-                        )
+                        ),
+                        beam_score
                     ))
 
                 if should_load_beams:

@@ -54,7 +54,7 @@ def preprocess_data(args, dataset):
     # tokenization
     encoder_max_length = 256  # demo
     decoder_max_length = 64
-
+    
     data = dataset.map(
         lambda batch: batch_tokenize_preprocess(
             args, batch, tokenizer, encoder_max_length, decoder_max_length
@@ -118,7 +118,7 @@ def beam_search_expand_single_bart(summ_model, summ_paths, beam_size, summ_data,
 
 def finalize_beam_search_expand_single_bart(summ_model, summ_paths, params):
     inp_ids = []
-    for _, path in summ_paths:
+    for _, path, _ in summ_paths:
         inp_ids.append(path.unsqueeze(0))
     input_path = torch.cat(inp_ids, dim=0)
     # override params["input_ids"] with summ_paths
