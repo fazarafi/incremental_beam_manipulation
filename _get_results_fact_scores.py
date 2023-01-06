@@ -39,11 +39,11 @@ def test_summary_scores_official(args, pred_file_name, scorers):
         for line in fin1:
             summaries_sys.append(line)
 
-    with open(pred_file + '.raw_src', "r", encoding="utf-8") as fin2:
+    with open(pred_file + '.gold', "r", encoding="utf-8") as fin2:
         for line in fin2:
             summaries_ref.append(line)
 
-    with open(pred_file + '.gold', "r", encoding="utf-8") as fin3:
+    with open(pred_file + '.raw_src', "r", encoding="utf-8") as fin3:
         for line in fin3:
             documents_ref.append(line)
 
