@@ -15,7 +15,7 @@ from tqdm import tqdm
 from utils import get_training_variables, START_TOK, PAD_TOK, END_TOK, get_multi_reference_training_variables, \
     get_final_beam, get_test_das, get_true_sents, TRAIN_BEAM_SAVE_FORMAT, TEST_BEAM_SAVE_FORMAT, RESULTS_DIR, \
     CONFIGS_MODEL_DIR, get_section_cutoffs, get_section_value, get_regression_vals, \
-    get_args_presumm, SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK, SUMM_CLS_TOK, convert_id_to_text, get_timestamp_file
+    get_args_presumm, SUMM_START_TOK, SUMM_END_TOK, SUMM_PAD_TOK, SUMM_CLS_TOK, get_timestamp_file
 from _base_models_fact import TrainableReranker, PairwiseReranker, SummaryFactTrainableReranker
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
 from _beam_search_fact import run_beam_search_with_rescorer
@@ -33,7 +33,8 @@ from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls
 from rouge import Rouge
 
-from _bart_utils import load_bart_dataset, load_bart_model, get_bart_tokenizer, convert_ids_to_text, BART_ENCODER_MAX_LENGTH
+from _bart_utils import load_bart_dataset, load_bart_model, get_bart_tokenizer, convert_ids_to_text, \
+    BART_ENCODER_MAX_LENGTH, BART_PAD_TOKEN
 
 import sys
 sys.path.insert(0, './PreSumm/src') # hacky
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_coco
 
-def convert_id_to_text(pretrained_model, tokenizer, token_ids):
+def convert_id_list_to_text(pretrained_model, tokenizer, token_ids):
     text = ""
 
     if type(token_ids) is str:
@@ -68,9 +69,10 @@ def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt)
     pretrained_model = args.pretrained_model
     # convert to factually scorable texts
     # if (docs) token_ids
-    docs = convert_id_to_text(pretrained_model, tokenizer, docs)
-    summ_hypo = convert_id_to_text(pretrained_model, tokenizer, summ_hypo)
-    summ_tgt = convert_id_to_text(pretrained_model, tokenizer, summ_tgt)
+    docs = convert_id_list_to_text(pretrained_model, tokenizer, docs)
+    summ_hypo = convert_id_list_to_text(pretrained_model, tokenizer, summ_hypo)
+
+    summ_tgt = convert_id_list_to_text(pretrained_model, tokenizer, summ_tgt)
 
     final_score = 0
     if scorer == 'factcc':
@@ -95,6 +97,8 @@ def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt)
         else:
             print("summ_tgt: ", summ_tgt)
             final_score = factcc_score
+    elif scorer == 'bart_penalty':
+        final_score = 0 # TODO take from paths
 
         
     # elif scorer == 'fact_mixed':
@@ -241,12 +245,9 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
     
     scorers = init_scorers()
 
-    
-    
     fact_scores = []
     docs_seqs = []
     summ_seqs = []
-    
     
     scores = []
     final_beam = pickle.load(open(beam_save_path, "rb"))
@@ -271,8 +272,6 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
             print("Ignoring only top since have merge_middle_sections set")
     
     # training_vals = list(zip(final_beam, train_texts, train_das))
-
-
     # Wrap summarization training set
     train_docs = []
     train_summ = []
@@ -383,14 +382,13 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
         
 
     if (args.pretrained_model=='bart'):
-        # TODO change 1 to special <pad> token
         len_summ = max([len(x) for x in train_summ])
         print("len_summ: ", len_summ)
-        summ_seqs = np.array(get_embeddings_summary(summ_seqs, 1, len_summ))
+        summ_seqs = np.array(get_embeddings_summary(summ_seqs, BART_PAD_TOKEN, len_summ))
         
         len_docs = max([len(x) for x in train_docs])
         print("len_docs: ", len_docs)
-        docs_seqs = np.array(get_embeddings_summary(docs_seqs, 1, len_docs))
+        docs_seqs = np.array(get_embeddings_summary(docs_seqs, BART_PAD_TOKEN, len_docs))
 
 
     elif (args.pretrained_model=='presumm'):

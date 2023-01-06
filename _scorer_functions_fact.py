@@ -240,11 +240,41 @@ def convert_id_to_text(pretrained_model, tokenizer, token_ids):
     # print("text ", text)
     return text
 
+def get_bart_score_function():
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
+        score = path[2]
+        if score is None:
+            score = 0
+        # print("BARTT score path: ", path)
+        return score
+    return func
+
+def get_bart_fact_score_function(pretrained_model, factcc_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
+        
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
+        summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+        
+        factcc_score = factcc_scorer.classify(docs, summ_hypo)
+        bart_score = path[2]
+        if bart_score is None:
+            bart_score = 0
+        
+        w_1 = w1
+        w_2 = w2
+
+        score = (w_1 * factcc_score + w_2 * bart_score)/(w_1 + w_2) 
+        # print("SKOR Fact MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
+
+        return score
+
+    return func
 
 def get_rouge_score_function(pretrained_model, scorer, tokenizer):
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
-        summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt)
+        tgt_len = len(path[1]) # give the same length to the current hypothesis
+        summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt[0:tgt_len])
         scores = scorer.get_scores(summ_hypo, summ_tgt, avg=True)
         score = scores['rouge-2']['f']
         
@@ -278,26 +308,27 @@ def get_summac_score_function(pretrained_model, tokenizer):
 
     return func
 
-def get_mixed_fact_score_function(pretrained_model, fact_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
-    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
-        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
-        summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+# DEPRECATED
+# def get_mixed_fact_score_function(pretrained_model, fact_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
+#     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
+#         docs = convert_id_to_text(pretrained_model, tokenizer, docs)
+#         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
         
-        start = time()
-        summac_score = summac_cls(docs, summ_hypo)
-        # print("summac scoring: ", time()-start)
+#         start = time()
+#         summac_score = summac_cls(docs, summ_hypo)
+#         # print("summac scoring: ", time()-start)
 
-        factcc_score = fact_scorer.classify(docs, summ_hypo)
+#         factcc_score = fact_scorer.classify(docs, summ_hypo)
         
-        w_1 = w1
-        w_2 = w2
+#         w_1 = w1
+#         w_2 = w2
 
-        score = (w_1 * factcc_score + w_2 * summac_score)/(w_1 + w_2)  # TODO FT need to train weight
-        # print("SKOR Fact MIXED: ", str(score))
+#         score = (w_1 * factcc_score + w_2 * summac_score)/(w_1 + w_2)  # TODO FT need to train weight
+#         # print("SKOR Fact MIXED: ", str(score))
 
-        return score
+#         return score
 
-    return func
+#     return func
 
 def get_mixed_fact_score_2_function(pretrained_model, coco_params, factcc_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
@@ -325,7 +356,9 @@ def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, t
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
         docs = convert_id_to_text(pretrained_model, tokenizer, docs)
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
-        summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt)
+        
+        tgt_len = len(path[1]) # give the same length to the current hypothesis
+        summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt[0:tgt_len])
         
         start = time()
         
@@ -379,6 +412,17 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
         factcc = FactccCaller()
         rouge_model = Rouge()
         return get_rouge_fact_score_function(pretrained_model, factcc, rouge_model, tokenizer, args.w1, args.w2)
+    elif scorer == "bart_penalty":
+        return get_bart_score_function()
+    elif scorer == "fact_bart":
+        factcc = FactccCaller()
+        return get_bart_fact_score_function(pretrained_model, factcc, tokenizer, args.w1, args.w2)
+    elif scorer == "weighted_fact":
+        print("TODO")
+    elif scorer == "surrogate_fact":
+        # TODO FT use bart tokenizer below
+        learned = SummaryFactTrainableReranker(summary_embedder, document_embedder, cfg['trainable_reranker_config'], tokenizer=tokenizer, pretrained_model=args.pretrained_model)
+        return get_fact_bart_score_function()
     elif scorer == "weighted_fact":
         print("TODO")
     elif scorer == "surrogate_fact":

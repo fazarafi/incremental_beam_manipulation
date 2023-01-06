@@ -125,6 +125,8 @@ def finalize_beam_search_expand_single_bart(summ_model, summ_paths, params):
     params["input_ids"] = input_path
     
     result = summ_model.finalize_beam_search_expand_single(
+        summ_paths,
+        params,
         params["beam_scorer"],
         params["input_ids"],
         params["beam_scores"],

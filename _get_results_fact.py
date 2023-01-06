@@ -119,7 +119,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
     beam_save_path = cfg.get('beam_save_path', '')
     if beam_save_path:
         scorer_label = cfg['scorer']
-        if cfg['scorer'] == 'fact_rouge' or cfg['scorer'] == 'fact_mixed':
+        if cfg['scorer'] in ['fact_rouge', 'fact_mixed', 'fact_bart']:
             scorer_label = cfg['scorer'] + '-' + str(int(args.w1)) + '-' + str(int(args.w2))
         beam_save_path = beam_save_path.format(args.use_dataset, args.pretrained_model, scorer_label, beam_size)
 
@@ -165,7 +165,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         if "res_save_format" in cfg:
             suffix_str = args.use_dataset + '_' + args.pretrained_model + '_' + str(beam_size)
             save_filename = cfg["res_save_format"].format(suffix_str)
-        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac', 'fact_rouge', 'rouge']:
+        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac', 'fact_rouge', 'rouge', 'bart_penalty', 'fact_bart']:
             fact_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
             save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], fact_cfg["output_type"],
                                                         fact_cfg["logprob_preprocess_type"],
@@ -265,9 +265,8 @@ if __name__ == '__main__':
         summ_data, summary_embedder, document_embedder, summ_model, lens = load_bart(args, cfg)
         len_summ_data = len(summ_data)
         
-    
     print("Total data: ", len_summ_data)
-
+   
     if cfg.get("first_x", False):
         das_test = das_test[:cfg['first_x']]
 

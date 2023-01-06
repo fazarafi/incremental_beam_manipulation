@@ -4,7 +4,6 @@ from itertools import product
 from math import log
 
 from gensim.models import Word2Vec
-import random
 import sys
 import os
 
@@ -54,20 +53,22 @@ def score_beams_fact(rescorer, beam, da_emb, i, docs, summ_tgt):
         lp_pos = 0
 
         hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs, summ_tgt)
+        # print("56 path ", path)
+        # print("57 hyp_score ", hyp_score)
         path_scores.append((hyp_score, path))
-        print(path_scores)
+        # print(path_scores)
     return path_scores
 
-def score_beams_fact_batch(rescorer, beam, da_emb, i, docs, summ_tgt):
-    path_scores = []
-    logprobs = [x[0] for x in beam]
-    for path in beam:
-        # lp_pos = sum([1 for lp in logprobs if lp > path[0] + 0.000001])
-        lp_pos = 0
+# def score_beams_fact_batch(rescorer, beam, da_emb, i, docs, summ_tgt):
+#     path_scores = []
+#     logprobs = [x[0] for x in beam]
+#     for path in beam:
+#         # lp_pos = sum([1 for lp in logprobs if lp > path[0] + 0.000001])
+#         lp_pos = 0
 
-        hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs, summ_tgt)
-        path_scores.append((hyp_score, path))
-    return path_scores
+#         hyp_score = rescorer(path, lp_pos, da_emb, i, len(beam), docs, summ_tgt)
+#         path_scores.append((hyp_score, path))
+#     return path_scores
 
 recorded_sections = []
 
@@ -75,6 +76,7 @@ recorded_sections = []
 # TODO pass in the value of the flags and then can controll these at a level where can distinguish between
 # greedy and non greedy
 def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=None, ignore_flags=False, summ_data=None, summ_tgt=None):
+    
     
     # this only works if rescorer is the one used in cfg
     global recorded_sections
@@ -107,7 +109,12 @@ def order_beam_acording_to_rescorer(rescorer, beam, da_emb, i, cfg, out_beam=Non
         print("TODO FT removed pairwise")
     else:
         path_scores = score_beams_fact(rescorer, beam, da_emb, i, summ_data, summ_tgt)
-        print("[FT DEBUG] path_scores: ", str(path_scores))
+        # print("[FT DEBUG path_scores: ", str(path_scores))
+
+    if path_scores[0][0] is None:
+        # print("115 NONE")
+        # print("116 beam: ", beam)
+        return beam
 
     order = sorted(enumerate(path_scores), reverse=True, key=lambda x: x[1][0])
 
@@ -172,7 +179,7 @@ def order_beam_after_greedy_complete_bart(rescorer, beam, max_pred_len, cfg, len
 
     return results
 
-def _run_beam_search_with_rescorer(args, i, da_emb, paths, enc_outs, beam_size, max_pred_len, seq2seq, cfg,
+def _run_beam_search_with_rescorer_presumm(args, i, da_emb, paths, enc_outs, beam_size, max_pred_len, seq2seq, cfg,
                                    rescorer=None, greedy_complete=[],
                                    save_progress_file=None, non_greedy_rescorer=None, length_norm_alpha=None, 
                                    summ_model=None, summ_data=None, summ_enc_outs=None, summ_paths=None, summ_tgt=None):
@@ -207,7 +214,7 @@ def _run_beam_search_with_rescorer(args, i, da_emb, paths, enc_outs, beam_size, 
         summ_paths = summ_paths[:beam_size]
         # print("NEW PATH: ", new_paths)
         # print("SAVE? ",save_progress_file)
-        if save_progress_file:
+        if save_progress_file and not args.skip_save_beam:
             # print("SAVE!")
             save_progress_file.write("Step: {}\n".format(step))
             for path in summ_paths:
@@ -239,7 +246,6 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
         # prune
         # randomize whether we use scoring or not
         # use scoring when len > 3
-        
         if (params['this_peer_finished']):
             sequence_output = finalize_beam_search_expand_single_bart(summ_model, new_all_paths, params)
 
@@ -258,7 +264,6 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
             
             if (summ_data[idx] != None) and (summ_tgt[idx] != ".") \
                 and (random.randint(0,9) % 2) and len(new_paths[0][1])>3:
-                
                 if step in greedy_complete and rescorer is not None:
                     print("DEBUG1")
                     # use new_all_paths as it uses all
@@ -271,10 +276,12 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
                     print("DEBUG2")
                     summ_paths = order_beam_acording_to_rescorer(non_greedy_rescorer, new_paths, None, i, cfg, ignore_flags=True, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
                 elif not greedy_complete and rescorer is not None and cfg['scorer'] != 'identity':
-                    print("DEBUG3")
+                    # GENERATE BEAM STEP
+                    #  print("DEBUG3")
                     summ_paths = order_beam_acording_to_rescorer(rescorer, new_paths, None, i, cfg, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
                 else:
-                    print("DEBUG4")
+                    # GENERATE TEST BEAM STEP
+                    # print("DEBUG4")
                     # print("new_paths: ", new_paths[0:2])
                     summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
                     # summ_paths = new_paths
@@ -287,7 +294,7 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
             
         summ_paths = total_summ_paths
 
-        if save_progress_file:
+        if save_progress_file and not args.skip_save_beam:
             save_progress_file.write("Step: {}\n".format(step))
             for path in summ_paths:
                 toks = convert_ids_to_text(bart_tokenizer, path[1])
@@ -304,7 +311,8 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
 def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_size, cfg, only_rerank_final=False,
                                   save_final_beam_path='', greedy_complete=[], max_pred_len=MAX_LEN, save_progress_path=None,
                                   also_rerank_final=False, non_greedy_rescorer=None, length_norm_alpha=None,
-                                  summ_scorer=None, summ_beam_search_model=None, summ_data=None, device='cpu', len_summ_data=None):
+                                  summ_scorer=None, summ_beam_search_model=None, summ_data=None, device='cpu', len_summ_data=None):    
+    random.seed(args.seed)
     global recorded_sections
     recorded_sections = []
     save_final_beam_path_toggle = False
@@ -404,7 +412,7 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                         if should_load_beams:
                             paths = load_final_beams[(i * batch_size) + j]
                         else:
-                            paths = _run_beam_search_with_rescorer(
+                            paths = _run_beam_search_with_rescorer_presumm(
                                 args, 
                                 i=i,
                                 da_emb=None,
@@ -451,8 +459,9 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
 
                         save_final_beam_path_toggle = not save_final_beam_path_toggle
 
-                        # TODO fix hack on len, investigate why
-                        if should_save_beams and (i % 100 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
+                        # TODO FT fix hack on len, investigate why
+                        if should_save_beams and not args.skip_save_beam and \
+                            (i % 100 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
                             print("Saving final beam states at ", save_final_beam_path)
                             if save_final_beam_path_toggle:
                                 toggledPath = save_final_beam_path
@@ -596,7 +605,8 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
 
                 
                 save_final_beam_path_toggle = not save_final_beam_path_toggle
-                if should_save_beams and (int(idx/batch_size) % 2 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
+                if should_save_beams and not args.skip_save_beam and \
+                    (int(idx/batch_size) % 2 == 0 or len(final_beams) == len_summ_data or len(final_beams) == len_summ_data-1 or len(final_beams) == len_summ_data-2):
                     print("Saving final beam states at ", save_final_beam_path)
                     if save_final_beam_path_toggle:
                         toggledPath = save_final_beam_path

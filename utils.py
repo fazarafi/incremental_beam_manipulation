@@ -434,6 +434,7 @@ def get_args_presumm(parser):
     parser.add_argument("-batch_size", default=1, type=int)
     
     parser.add_argument("-use_size", default=-99, type=int)
+    parser.add_argument("-skip_save_beam", default=False, type=bool)
     
     return parser
 
