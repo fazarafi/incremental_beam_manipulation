@@ -1,0 +1,27 @@
+tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
+fact_config: ""
+trainable_reranker_config:
+  "new_configs/model_configs/a0_fact_bm_model_xsum_fact_coco_bart_1-1-1_5.yaml"
+scorer: 'fact_coco_bart'
+beam_sizes:
+    # - 3
+    - 5
+    # - 10
+    # - 15
+only_rerank_final: false
+also_rerank_final: true
+greedy_complete_at:
+  - - 3
+    - 5
+    - 10
+    - 15 
+coarse_ranker: true
+# also_rerank_final: true
+save_prefix: "z000_all_"
+summary_dataset: "ori-xsum-fact_coco_bart_1_1_1-test-5"
+
+res_save_format:
+  'z0_superori_factcc_coco_bartpen-ignore-{}.txt'
+
+
+use_size: 2000

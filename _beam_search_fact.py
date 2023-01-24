@@ -24,7 +24,7 @@ from tqdm import tqdm
 from embedding_extractor import TokEmbeddingSeq2SeqExtractor, DAEmbeddingSeq2SeqExtractor
 from _scorer_functions_fact import get_identity_score_func
 from utils import get_texts_training, RERANK, get_training_das_texts, safe_get_w2v, apply_absts, PAD_TOK, END_TOK, \
-    START_TOK, get_section_cutoffs, get_section_value, get_regression_vals, get_timestamp_file
+    START_TOK, get_section_cutoffs, get_section_value, get_regression_vals, get_timestamp_file, chunks
 
 import torch
 from pytorch_transformers import BertTokenizer
@@ -148,7 +148,7 @@ def order_beam_after_greedy_complete_bart(rescorer, beam, max_pred_len, cfg, len
     toks_pred_so_far = max([len(x[1]) for x in beam])
     
     for step in range(max_pred_len - toks_pred_so_far):
-        
+        # print("151 truss")
         finished_beam, bart_params, model_kwargs = \
             beam_search_expand_single_bart(summ_model, finished_beam, beam_size, summ_data, bart_params, **model_kwargs)
 
@@ -173,7 +173,7 @@ def order_beam_after_greedy_complete_bart(rescorer, beam, max_pred_len, cfg, len
         
         # TODO FT remove below for debug only
         result = finished_beam_el
-        print("HEYYYYY")
+        # print("HEYYYYY")
 
         results += result
 
@@ -257,13 +257,14 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
             
             new_all_paths = last_path
 
-
+        rand_int = random.randint(0,50)
+        # print("DEBUG div: ", args.rand_divider, ", rand_int: ", rand_int)
         total_summ_paths = []
         for idx in range(batch_size):
             new_paths = new_all_paths[idx*beam_size : (idx+1)*beam_size]
             
             if (summ_data[idx] != None) and (summ_tgt[idx] != ".") \
-                and (random.randint(0,9) % 2) and len(new_paths[0][1])>3:
+                and (rand_int % args.rand_divider == 0) and len(new_paths[0][1])>3:
                 if step in greedy_complete and rescorer is not None:
                     print("DEBUG1")
                     # use new_all_paths as it uses all
@@ -283,6 +284,10 @@ def _run_beam_search_with_rescorer_bart(args, i, beam_size, max_pred_len, cfg,
                     # GENERATE TEST BEAM STEP
                     # print("DEBUG4")
                     # print("new_paths: ", new_paths[0:2])
+                    
+                    # TODO REMOVE BELOW
+                    # summ_paths = order_beam_acording_to_rescorer(rescorer, new_paths, None, i, cfg, summ_data=summ_data[idx], summ_tgt=summ_tgt[idx])
+                    
                     summ_paths = sorted(new_paths, reverse=True, key=lambda x: x[1][0])
                     # summ_paths = new_paths
             else:
@@ -312,14 +317,14 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
                                   save_final_beam_path='', greedy_complete=[], max_pred_len=MAX_LEN, save_progress_path=None,
                                   also_rerank_final=False, non_greedy_rescorer=None, length_norm_alpha=None,
                                   summ_scorer=None, summ_beam_search_model=None, summ_data=None, device='cpu', len_summ_data=None):    
-    random.seed(args.seed)
+    # random.seed(args.seed)
     global recorded_sections
     recorded_sections = []
     save_final_beam_path_toggle = False
     if save_progress_path is not None:
         # save_progress_file = open(save_progress_path.format(beam_size), 'w+')
         scorer_label = cfg['scorer']
-        if cfg['scorer'] == 'fact_rouge' or cfg['scorer'] == 'fact_mixed':
+        if cfg['scorer'] in ['fact_rouge','fact_mixed', 'fact_bart', 'coco_bart'] :
             scorer_label = cfg['scorer'] + '-' + str(int(args.w1)) + '-' + str(int(args.w2))
         save_progress_file = open(save_progress_path.format(args.use_dataset, args.pretrained_model, scorer_label, beam_size), 'w+')
     else:
@@ -479,13 +484,23 @@ def run_beam_search_with_rescorer(args, scorer, beam_search_model, das, beam_siz
 
             batch_size = args.batch_size
             idx = len(final_beams)
-            
+
+            # documents = list(chunks(summ_data["document"], batch_size))
+            # summaries = list(chunks(summ_data["summaries"], batch_size))
+
+            # for src_list, tgt_list in zip(documents, summaries):
+            #     a
+    
+
             for batch in chunked(zip(summ_data["document"][len(final_beams):], summ_data["summary"][len(final_beams):]), batch_size):
-                print("Process summ_data: ", idx + 1, " to ", idx + batch_size)
                 
                 src_list = [d for d,s in batch]
                 tgt_list = [s for d,s in batch]
 
+                batch_size = len(src_list)
+                
+                print("Process summ_data: ", idx + 1, " to ", idx + batch_size)
+                
                 inputs = tokenizer(
                     src_list,
                     padding="max_length",

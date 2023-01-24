@@ -1,0 +1,22 @@
+tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
+fact_config: ""
+trainable_reranker_config:
+  "new_configs/model_configs/a0_fact_bm_model_cnndm_factcc_bart_3-1_5.yaml"
+scorer: 'fact_bart'
+beam_sizes:
+    # - 3
+    - 5
+    # - 10
+    # - 15
+only_rerank_final: false
+greedy_complete_at:
+  - - 3
+    - 5
+    - 10
+    - 15 
+coarse_ranker: true
+also_rerank_final: true
+save_prefix: "z0_all_"
+summary_dataset: "-ori-cnndm-factcc_bart_3_1-5"
+
+use_size: 2000

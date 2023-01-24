@@ -436,6 +436,9 @@ def get_args_presumm(parser):
     parser.add_argument("-use_size", default=-99, type=int)
     parser.add_argument("-skip_save_beam", default=False, type=bool)
     
+    parser.add_argument("-multi_w", default=None)
+    parser.add_argument("-rand_divider", default=2, type=int)
+    
     return parser
 
 
@@ -458,6 +461,12 @@ def convert_id_to_text_bart(token_ids):
     tokenizer = AutoTokenizer.from_pretrained("sshleifer/distilbart-xsum-12-3")
     text = tokenizer.decode(token_ids, skip_special_tokens=True)
     return text
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
 
 
 # def get_embedding_symbols(token):

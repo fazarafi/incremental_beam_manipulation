@@ -1,0 +1,32 @@
+valid_size: 1500
+epoch: 100
+training_batch_size: 16
+hidden_size: 128
+embedding_size: 50
+use_size: 10000
+
+fact_model_config: "new_configs/model_configs/fact_model.yaml"
+
+min_training_passes: 30
+show_reranker_post_training_stats: false
+train: true
+output_type: 'fact'
+logprob_preprocess_type: 'categorical_order'
+# beam_size: 30
+beam_size: 10
+dropout: 0.0
+too_close_limit: 0.01
+num_ranks: 4
+with_refs_train: false
+merge_middle_sections: false
+only_top: false
+only_bottom: true
+loss_function: 'absolute_error'
+
+reranker_loc: 'models/bart/z0_fact_bm_xsum_factcc-10'
+beam_save_path: "output_files/saved_beams/z0_xsum_bart_fact_full_factcc_train_10.pickle"
+
+scorer: 'factcc'
+
+
+

@@ -177,11 +177,16 @@ def get_learned_fact_score_func(trainable_reranker, select_max=False, reverse_or
         summ_seqs = [pads + summ_emb]
         summ_seqs = [summ_seqs[0][:len_summ]]
 
+        # print("DEB ", docs)
         if (type(docs) == torch.Tensor):
-            docs_emb = docs[0].cpu().tolist()
+            if (len(docs.shape)>1):
+                docs_emb = docs[0].cpu().tolist()    
+            else:
+                docs_emb = docs.cpu().tolist()
         else:
             docs_emb = docs
         
+        # print("DEBUG 185 ", docs_emb)
         docs_pads = [pad_symbol] * \
                (len_docs - len(docs_emb))
         docs_seqs = [docs_pads + docs_emb]
@@ -240,11 +245,16 @@ def convert_id_to_text(pretrained_model, tokenizer, token_ids):
     # print("text ", text)
     return text
 
+def get_bart_score(path):
+    cur_len = len(path[1])
+    score = path[2] if path[2] is not None else 0 
+    adjusted_score = score / cur_len
+    # print("[DEBUG] len: ", cur_len, ", score: ", score, ", adjusted: ", adjusted_score)
+    return adjusted_score
+
 def get_bart_score_function():
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):
-        score = path[2]
-        if score is None:
-            score = 0
+        score = get_bart_score(path)
         # print("BARTT score path: ", path)
         return score
     return func
@@ -256,9 +266,7 @@ def get_bart_fact_score_function(pretrained_model, factcc_scorer, tokenizer, w1,
         summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
         
         factcc_score = factcc_scorer.classify(docs, summ_hypo)
-        bart_score = path[2]
-        if bart_score is None:
-            bart_score = 0
+        bart_score = get_bart_score(path)
         
         w_1 = w1
         w_2 = w2
@@ -352,6 +360,55 @@ def get_mixed_fact_score_2_function(pretrained_model, coco_params, factcc_scorer
 
     return func
 
+def get_mixed_coco_bart_score_function(pretrained_model, coco_params, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
+        
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
+        summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+        
+        bart_score = get_bart_score(path)
+        coco_score = evaluate_coco(coco_params, docs, summ_hypo)
+        
+        # print("bart_score: ", bart_score)
+        # print("coco_score: ", coco_score)
+        
+        w_1 = w1
+        w_2 = w2
+
+        score = (w_1 * coco_score + w_2 * bart_score)/(w_1 + w_2) 
+        # print("SKOR Fact MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
+
+        return score
+
+    return func
+
+def get_factcc_coco_bart_score_function(pretrained_model, coco_params, factcc_scorer, tokenizer, multi_w): # TODO FT use array of w instead of parameters
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
+        
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
+        summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+        
+        factcc_score = factcc_scorer.classify(docs, summ_hypo)
+        coco_score = evaluate_coco(coco_params, docs, summ_hypo)
+        bart_score = get_bart_score(path)
+        
+        # print("factcc_score: ", factcc_score)
+        # print("coco_score: ", coco_score)
+        
+        weights = multi_w.split(',')
+        w_1 = int(weights[0])
+        w_2 = int(weights[1])
+        w_3 = int(weights[2])
+
+        # TODO FT add w_3
+        score = (w_1 * factcc_score + w_2 * coco_score + w_3 * bart_score)/(w_1 + w_2 + w_3) 
+
+        # print("SKOR ALL MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
+
+        return score
+
+    return func
+
 def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
         docs = convert_id_to_text(pretrained_model, tokenizer, docs)
@@ -417,12 +474,13 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
     elif scorer == "fact_bart":
         factcc = FactccCaller()
         return get_bart_fact_score_function(pretrained_model, factcc, tokenizer, args.w1, args.w2)
-    elif scorer == "weighted_fact":
-        print("TODO")
-    elif scorer == "surrogate_fact":
-        # TODO FT use bart tokenizer below
-        learned = SummaryFactTrainableReranker(summary_embedder, document_embedder, cfg['trainable_reranker_config'], tokenizer=tokenizer, pretrained_model=args.pretrained_model)
-        return get_fact_bart_score_function()
+    elif scorer == 'coco_bart':
+        coco_params = initialize_coco()
+        return get_mixed_coco_bart_score_function(pretrained_model, coco_params,tokenizer, args.w1, args.w2)
+    elif scorer == 'fact_coco_bart':
+        factcc = FactccCaller()
+        coco_params = initialize_coco()
+        return get_factcc_coco_bart_score_function(pretrained_model, coco_params, factcc, tokenizer, args.multi_w)
     elif scorer == "weighted_fact":
         print("TODO")
     elif scorer == "surrogate_fact":

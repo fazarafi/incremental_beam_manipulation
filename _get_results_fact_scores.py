@@ -23,6 +23,8 @@ HOME_DATA = "/home/lr/faza.thirafi/raid_elmo/cache/"
 sys.path.insert(0, HOME_REPO + "feqa/")
 from feqa import FEQA
 
+import datasets 
+
 
 def average(lst):
     return sum(lst) / len(lst)
@@ -71,6 +73,20 @@ def test_summary_scores_official(args, pred_file_name, scorers):
         print('TEST WITH ROUGE: ', final_scores)
         final_results.append(final_scores)
 
+    if 'rouge-d' in scorers:
+        print('TEST WITH ROUGE - DATASETS')
+        final_scores = {}
+        final_scores["scorer"] = 'rouge-datasets'
+        
+        rouge_metric = datasets.load_metric('rouge')
+        rouge_metric.add_batch(predictions=summaries_sys, references=summaries_ref)
+        score_2 = rouge_metric.compute()
+        
+        final_scores["raw_scores"] = score_2
+        
+        print('TEST WITH ROUGE-DATASETS: ', final_scores)
+        final_results.append(final_scores)
+    
     if 'factcc' in scorers:
         final_scores = {}
         print('TEST WITH FactCC')
@@ -175,7 +191,7 @@ if __name__ == "__main__":
     
     result, data_length = test_summary_scores_official(args, pred_file_name, scorers)    
     
-    pred_file = os.path.join(SUMM_RESULTS_DIR, pred_file_name)
+    pred_file = os.path.join(SUMM_RESULTS_DIR, 'test_results', pred_file_name)
     
     print(result)
     print("END")
@@ -183,5 +199,5 @@ if __name__ == "__main__":
     with open(pred_file + '.test_result_cust_' + get_timestamp_file(), "w+", encoding='utf-8') as out_file_result:
         for res in result:
             out_file_result.write(str(res) + '\n')
-        out_file_result.write("use_size: "+ str(pred_file_name) + '\n')
+        out_file_result.write("file_name: "+ str(pred_file_name) + '\n')
         out_file_result.write("use_size: "+ str(data_length) + '\n')

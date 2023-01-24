@@ -79,7 +79,7 @@ def load_bart_dataset(args):
         data = datasets.load_dataset(dataset_name, name='3.0.0', 
             split="validation" if data_type=="valid" else data_type)
         dataset = data.map(cnndm_flatten , remove_columns=["highlights","article", "id"])
-
+    
     return preprocess_data(args, dataset)
 
 def load_bart_model(args, model_name=BART_XSUM_MODEL):

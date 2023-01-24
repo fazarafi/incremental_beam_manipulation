@@ -44,6 +44,13 @@ logger = logging.getLogger(__name__)
 
 from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_coco
 
+# TODO FT remove duplication with scorer_functions
+def get_bart_score(b_score, cur_len=0):
+    score = b_score if b_score is not None else 0 
+    adjusted_score = score / cur_len
+    # print("[DEBUG] len: ", cur_len, ", score: ", score, ", adjusted: ", adjusted_score)
+    return adjusted_score
+
 def convert_id_list_to_text(pretrained_model, tokenizer, token_ids):
     text = ""
 
@@ -64,8 +71,9 @@ def convert_id_list_to_text(pretrained_model, tokenizer, token_ids):
     return text
 
 
-def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt):
-    
+def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt, b_score=0):
+    cur_len = len(summ_hypo)
+
     pretrained_model = args.pretrained_model
     # convert to factually scorable texts
     # if (docs) token_ids
@@ -98,7 +106,32 @@ def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt)
             print("summ_tgt: ", summ_tgt)
             final_score = factcc_score
     elif scorer == 'bart_penalty':
-        final_score = 0 # TODO take from paths
+        bart_score = get_bart_score(b_score, cur_len)
+        final_score = bart_score
+    elif scorer == 'fact_bart':
+        w1 = args.w1
+        w2 = args.w2
+        factcc_score = scorers['factcc'].classify(docs, summ_hypo)
+        bart_score = get_bart_score(b_score, cur_len)
+        final_score = (w1*factcc_score + w2*bart_score)/(w1+w2)
+
+    elif scorer == 'coco_bart':
+        w1 = args.w1
+        w2 = args.w2
+        coco_score = evaluate_coco(scorers['coco'], docs, summ_hypo)
+        bart_score = get_bart_score(b_score, cur_len)
+        final_score = (w1*coco_score + w2*bart_score)/(w1+w2)
+
+    elif scorer == 'fact_coco_bart':
+        weights = args.multi_w.split(',')
+        w1 = int(weights[0])
+        w2 = int(weights[1])
+        w3 = int(weights[2])
+
+        factcc_score = scorers['factcc'].classify(docs, summ_hypo)
+        coco_score = evaluate_coco(scorers['coco'], docs, summ_hypo)
+        bart_score = get_bart_score(b_score, cur_len)
+        final_score = (w1 * factcc_score + w2 * coco_score + w3 * bart_score)/(w1 + w2 + w3) 
 
         
     # elif scorer == 'fact_mixed':
@@ -335,7 +368,7 @@ def get_scores_ordered_beam_fact(args, device, cfg, documents, summaries, beam_s
                 # print(i)
                 summ = path[1] 
                 # TODO FT check whether it's in the same data
-                fact_score = get_fact_scores(args, cfg['scorer'], tokenizer, scorers, docs, summ, real_summs)
+                fact_score = get_fact_scores(args, cfg['scorer'], tokenizer, scorers, docs, summ, real_summs, path[2])
 
                 beam_scores.append((fact_score, summ, path))
 
@@ -620,7 +653,7 @@ if cfg["show_reranker_post_training_stats"]:
         real_scores = []
         lp_probs_beam = [x[0] for x in beam]
         for i, path in enumerate(beam):
-            logp, summ_emb, _ = path
+            logp, summ_emb, b_score = path
             docs_seqs = test_docs
             summ_seqs = summ_emb
             
@@ -632,7 +665,7 @@ if cfg["show_reranker_post_training_stats"]:
 
             # bleu.append(pred, test_summ)
 
-            score = get_fact_scores(args, cfg['scorer'], tokenizer, scorers, docs_seqs, test_summ)
+            score = get_fact_scores(args, cfg['scorer'], tokenizer, scorers, docs_seqs, test_summ, b_score)
 
             real_scores.append((score), i)
 
@@ -685,10 +718,10 @@ if cfg["show_reranker_post_training_stats"]:
         #     real = bleu.score()
         #     mapping.append((pred[0], real))
         #     beam_scores.append((real, pred[0], i, tp[0]))
-        for i, (pred, summ_hypo, tp) in enumerate(zip(preds, beam_summ, tp_seqs)):
-            real = get_fact_scores(args, cfg['scorer'], tokenizer, scorers, docs, summ_hypo)
+        for i, (pred, summ_hypo, b_score) in enumerate(zip(preds, beam_summ, tp_seqs)):
+            real = get_fact_scores(args, cfg['scorer'], tokenizer, scorers, docs, b_score)
             mapping.append((pred[0], real))
-            beam_scores.append((real, pred[0], i, tp[0]))
+            beam_scores.append((real, pred[0], i, b_score[0]))
 
         
         sorted_beam_scores = sorted(beam_scores,  key=lambda x: x[0], reverse=True)
