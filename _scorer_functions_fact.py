@@ -268,8 +268,8 @@ def get_bart_fact_score_function(pretrained_model, factcc_scorer, tokenizer, w1,
         factcc_score = factcc_scorer.classify(docs, summ_hypo)
         bart_score = get_bart_score(path)
         
-        w_1 = w1
-        w_2 = w2
+        w_1 = w2
+        w_2 = w1
 
         score = (w_1 * factcc_score + w_2 * bart_score)/(w_1 + w_2) 
         # print("SKOR Fact MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
@@ -328,8 +328,8 @@ def get_summac_score_function(pretrained_model, tokenizer):
 
 #         factcc_score = fact_scorer.classify(docs, summ_hypo)
         
-#         w_1 = w1
-#         w_2 = w2
+#         w_1 = w2
+#         w_2 = w1
 
 #         score = (w_1 * factcc_score + w_2 * summac_score)/(w_1 + w_2)  # TODO FT need to train weight
 #         # print("SKOR Fact MIXED: ", str(score))
@@ -350,8 +350,8 @@ def get_mixed_fact_score_2_function(pretrained_model, coco_params, factcc_scorer
         # print("factcc_score: ", factcc_score)
         # print("coco_score: ", coco_score)
         
-        w_1 = w1
-        w_2 = w2
+        w_1 = w2
+        w_2 = w1
 
         score = (w_1 * factcc_score + w_2 * coco_score)/(w_1 + w_2) 
         # print("SKOR Fact MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
@@ -372,8 +372,8 @@ def get_mixed_coco_bart_score_function(pretrained_model, coco_params, tokenizer,
         # print("bart_score: ", bart_score)
         # print("coco_score: ", coco_score)
         
-        w_1 = w1
-        w_2 = w2
+        w_1 = w2
+        w_2 = w1
 
         score = (w_1 * coco_score + w_2 * bart_score)/(w_1 + w_2) 
         # print("SKOR Fact MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
@@ -409,6 +409,41 @@ def get_factcc_coco_bart_score_function(pretrained_model, coco_params, factcc_sc
 
     return func
 
+def get_factcc_coco_bart_rouge_score_function(pretrained_model, coco_params, factcc_scorer, rouge_scorer, tokenizer, multi_w): # TODO FT use array of w instead of parameters
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
+        
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
+        summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+        
+        factcc_score = factcc_scorer.classify(docs, summ_hypo)
+        coco_score = evaluate_coco(coco_params, docs, summ_hypo)
+        bart_score = get_bart_score(path)
+
+        tgt_len = len(path[1]) # give the same length to the current hypothesis
+        summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt[0:tgt_len])
+        
+        rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
+        rouge_score = rouge_scores['rouge-2']['f']
+        
+        
+        # print("factcc_score: ", factcc_score)
+        # print("coco_score: ", coco_score)
+        
+        weights = multi_w.split(',')
+        w_1 = int(weights[0])
+        w_2 = int(weights[1])
+        w_3 = int(weights[2])
+        w_4 = int(weights[3])
+
+        # TODO FT add w_3
+        score = (w_1 * factcc_score + w_2 * coco_score + w_3 * bart_score + w_4 * rouge_score)/(w_1 + w_2 + w_3 + w_4) 
+
+        # print("SKOR ALL MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
+
+        return score
+
+    return func
+
 def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, tokenizer, w1, w2): # TODO FT use array of w instead of parameters
     def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
         docs = convert_id_to_text(pretrained_model, tokenizer, docs)
@@ -426,8 +461,8 @@ def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, t
         rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
         rouge_score = rouge_scores['rouge-2']['f']
         
-        w_1 = w1
-        w_2 = w2
+        w_1 = w2
+        w_2 = w1
 
         score = (w_1 * factcc_score + w_2 * rouge_score)/(w_1 + w_2)  # TODO FT need to train weight
         # print("SKOR Fact MIXED: ", str(score))
@@ -435,6 +470,51 @@ def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, t
         return score
 
     return func
+
+# Function to get base scores: ROUGE and LP
+def get_baseline(pretrained_model, tokenizer, tgt, summ_hypo, rouge_scorer, path):
+    score = 0
+
+    tgt_len = len(path[1]) # give the same length to the current hypothesis
+    summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt[0:tgt_len])
+    
+    rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
+    rouge_score = rouge_scores['rouge-2']['f'] # or AVG of all R-1, R-2, R-3 scores?
+    bart_score = get_bart_score(path)
+
+    if (bart_score==0):
+        bart_score = rouge_score # TODO mana yg oke?
+
+    score = rouge_score + bart_score / 2
+
+    return score
+
+def get_score_baseline_fact(pretrained_model, rouge_scorer, tokenizer, w1=0, w2=0):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):   
+        summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+        score = get_baseline(pretrained_model, tokenizer, tgt, summ_hypo, rouge_scorer, path)
+        # print("score baseline: ", score)
+        return score
+
+    return func
+
+def get_score_completed_function_fact(pretrained_model, coco_params, factcc_scorer, tokenizer, multi_w):
+    def func(path, logprob, da_emb, da_i, beam_size, docs, tgt=None):    
+        score = 0
+        docs = convert_id_to_text(pretrained_model, tokenizer, docs)
+        summ_hypo = convert_id_to_text(pretrained_model, tokenizer, path[1])
+        
+        tgt_len = len(path[1]) # give the same length to the current hypothesis
+        summ_tgt = convert_id_to_text(pretrained_model, tokenizer, tgt[0:tgt_len])
+        
+
+        return score
+    return func
+
+
+def normalize_score(score, min, max):
+    return (score - min) / (max - mi)
+
 
 def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, alpha=0.65, summary_embedder=None, document_embedder=None, lens=None):
     print("Using Scorer: {}".format(scorer))
@@ -481,7 +561,16 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
         factcc = FactccCaller()
         coco_params = initialize_coco()
         return get_factcc_coco_bart_score_function(pretrained_model, coco_params, factcc, tokenizer, args.multi_w)
+    elif scorer == 'fact_coco_bart_rouge':
+        factcc = FactccCaller()
+        coco_params = initialize_coco()
+        rouge_model = Rouge()
+        return get_factcc_coco_bart_rouge_score_function(pretrained_model, coco_params, factcc, rouge_model, tokenizer, args.multi_w)
     elif scorer == "weighted_fact":
+        print("TODO")
+    elif scorer == "baseline":
+        rouge_model = Rouge()
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
         print("TODO")
     elif scorer == "surrogate_fact":
         # TODO FT use bart tokenizer below

@@ -2,13 +2,13 @@ tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
 
 scorer: 'fact_coco_bart'
 res_save_format:
-  'z00-factcc_coco_bartpen-ignore-{}.txt'
+  'z00-factcc_coco_bartpen-ignore-rand5-{}.txt'
 beam_sizes:
   - 5
   # - 10
   # - 15
 only_rerank_final: false
-beam_save_path: "output_files/saved_beams/z00_{}_{}_fact_full_{}_train_{}.pickle"
+beam_save_path: "output_files/saved_beams/z00_{}_{}_fact_full_{}_train_{}_rand5.pickle"
 # "output_files/saved_beams/z12_xsum_bart_fact_factcc_full_{}_train_{}.pickle"
 get_train_beam: true
-save_progress_file: "output_files/saved_beams/z00_{}_{}_fact_full_{}_train_{}_progress.pickle"
+save_progress_file: "output_files/saved_beams/z00_{}_{}_fact_full_{}_train_{}_progress_rand5.pickle"

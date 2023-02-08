@@ -121,7 +121,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         scorer_label = cfg['scorer']
         if cfg['scorer'] in ['fact_rouge', 'fact_mixed', 'fact_bart', 'coco_bart']:
             scorer_label = cfg['scorer'] + '-' + str(int(args.w1)) + '-' + str(int(args.w2))
-        if cfg['scorer'] in ['fact_coco_bart']:
+        if cfg['scorer'] in ['fact_coco_bart', 'fact_coco_bart_rouge']:
             suffix = ''
             weights = args.multi_w.split(',')
             for wei in weights:
@@ -172,7 +172,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         if "res_save_format" in cfg:
             suffix_str = args.use_dataset + '_' + args.pretrained_model + '_' + str(beam_size)
 
-            if cfg['scorer'] in ['fact_coco_bart']:
+            if cfg['scorer'] in ['fact_coco_bart', 'fact_coco_bart_rouge', 'fact_coco_bart_rouge']:
                 suffix_weights = ''
                 weights = args.multi_w.split(',')
                 for wei in weights:
@@ -183,7 +183,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
 
             save_filename = cfg["res_save_format"].format(suffix_str)
         # TODO FT store list of scorer as const
-        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['factcc', 'fact_mixed', 'summac', 'fact_rouge', 'rouge', 'bart_penalty', 'fact_bart', 'coco_bart', 'fact_coco_bart']:
+        elif 'trainable_reranker_config' in cfg and cfg['scorer'] in ['baseline','factcc', 'fact_mixed', 'summac', 'fact_rouge', 'rouge', 'bart_penalty', 'fact_bart', 'coco_bart', 'fact_coco_bart', 'fact_coco_bart_rouge']:
             fact_cfg = yaml.safe_load(open(cfg["trainable_reranker_config"], 'r+'))
             save_filename = "-{}-{}-{}-{}-{}-{}.txt".format(cfg["summary_dataset"], cfg['scorer'], fact_cfg["output_type"],
                                                         fact_cfg["logprob_preprocess_type"],
@@ -212,7 +212,7 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
         #     print("Abstract not applied")
         #     post_abstr = preds
         
-        if not(len(preds) == 0):
+        if not(args.use_data=='train' or len(preds) == 0):
             print("Saving to {}".format(save_path))
             parent = os.path.abspath(os.path.join(save_path, os.pardir))
             if not os.path.exists(parent):
@@ -227,12 +227,10 @@ def do_beam_search_fact(args, beam_size, cfg, models, das_test, da_embedder, tex
             
             with open(save_path + '.gold', "w+", encoding='utf-8') as out_file_tgt:
                 for pa in tgts:
-                    pa
                     out_file_tgt.write(str(pa.replace('\n', ' ')) + '\n')
                     
             
-            # print("Summary Score: ", test_summary_scores(args, save_filename_update, cfg['scorer'], mode='test'))
-        
+            
             scorers = ['factcc', 'rouge', 'coco', 'summac', 'rouge-d'] # TODO FT for first step, complete it later
             complete_scorers = ['factcc', 'rouge', 'summac', 'feqa', 'coco']
             test_result, _ = test_summary_scores_official(args, save_filename_update, scorers)
