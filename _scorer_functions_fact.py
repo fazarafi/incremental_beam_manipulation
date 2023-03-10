@@ -401,7 +401,7 @@ def get_factcc_coco_bart_score_function(pretrained_model, coco_params, factcc_sc
         w_3 = int(weights[2])
 
         # TODO FT add w_3
-        score = (w_1 * factcc_score + w_2 * coco_score + w_3 * bart_score)/(w_1 + w_2 + w_3) 
+        score = (w_1 * normalize_score(factcc_score, -1, 1) + w_2 * normalize_score(coco_score, -1, 1) + w_3 * normalize_score(bart_score,0 ,1))/(w_1 + w_2 + w_3) 
 
         # print("SKOR ALL MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
 
@@ -436,7 +436,7 @@ def get_factcc_coco_bart_rouge_score_function(pretrained_model, coco_params, fac
         w_4 = int(weights[3])
 
         # TODO FT add w_3
-        score = (w_1 * factcc_score + w_2 * coco_score + w_3 * bart_score + w_4 * rouge_score)/(w_1 + w_2 + w_3 + w_4) 
+        score = (w_1 * normalize_score(factcc_score, -1, 1) + w_2 * normalize_score(coco_score, -1, 1) + w_3 * normalize_score(bart_score, 0, 1) + w_4 * normalize_score(rouge_score, 0, 1))/(w_1 + w_2 + w_3 + w_4) 
 
         # print("SKOR ALL MIXED: ", str(score), "|  w1:", w_1," w2:", w_2)
 
@@ -464,7 +464,7 @@ def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, t
         w_1 = w2
         w_2 = w1
 
-        score = (w_1 * factcc_score + w_2 * rouge_score)/(w_1 + w_2)  # TODO FT need to train weight
+        score = (w_1 * normalize_score(factcc_score, -1, 1) + w_2 * normalize_score(rouge_score, 0, 1))/(w_1 + w_2)  # TODO FT need to train weight
         # print("SKOR Fact MIXED: ", str(score))
 
         return score
@@ -513,7 +513,7 @@ def get_score_completed_function_fact(pretrained_model, coco_params, factcc_scor
 
 
 def normalize_score(score, min, max):
-    return (score - min) / (max - mi)
+    return (score - min) / (max - min)
 
 
 def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, alpha=0.65, summary_embedder=None, document_embedder=None, lens=None):

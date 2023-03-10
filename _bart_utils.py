@@ -75,6 +75,7 @@ def load_bart_dataset(args):
         dataset = data.map(remove_columns=["id"])
     
     elif dataset_name == 'cnndm':
+        # TODO FT fix this to get better result
         dataset_name = 'cnn_dailymail'
         data = datasets.load_dataset(dataset_name, name='3.0.0', 
             split="validation" if data_type=="valid" else data_type)

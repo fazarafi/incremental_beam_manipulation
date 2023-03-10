@@ -57,7 +57,7 @@ def convert_id_list_to_text(pretrained_model, tokenizer, token_ids):
     if type(token_ids) is str:
         return token_ids
 
-    if (pretrained_model=='presumm'):
+    if (pretrained_model == 'presumm'):
         # reshape first
         token_ids = token_ids.flatten()
 
@@ -65,12 +65,15 @@ def convert_id_list_to_text(pretrained_model, tokenizer, token_ids):
         text = tokenizer.convert_ids_to_tokens([int(n) for n in token_ids])
         text = ' '.join(text).replace(' ##','')
         text = text.replace('[unused0]', '').replace('[unused3]', '').replace('[PAD]', '').replace('[unused1]', '').replace(r' +', ' ').replace(' [unused2] ', '<q>').replace('[unused2]', '').strip()
-    elif (pretrained_model=='bart'):
+    elif (pretrained_model == 'bart'):
         text = convert_ids_to_text(tokenizer, token_ids)
     
     return text
 
+def normalize_score(score, min, max):
+    return (score - min) / (max - min)
 
+#TODO FT gabungin ini sama scorer function, normalize semua scores
 def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt, b_score=0):
     cur_len = len(summ_hypo)
 
@@ -85,6 +88,19 @@ def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt,
     final_score = 0
     if scorer == 'factcc':
         final_score = scorers['factcc'].classify(docs, summ_hypo)
+    elif scorer == 'baseline':
+            
+        w1 = args.w1
+        w2 = args.w2
+        rouge_scores = scorers['rouge'].get_scores(summ_hypo, summ_tgt, avg=True)
+        rouge_score = rouge_scores['rouge-2']['f']
+        bart_score = get_bart_score(b_score, cur_len)
+        if not(bart_score == 0):
+            final_score = (w1*rouge_score + w2*bart_score)/(w1+w2)
+        else:
+            final_score = rouge_score
+    
+    
     elif scorer == 'summac':
         final_score = summac_cls(docs, summ_hypo)
     elif scorer == 'fact_mixed':
@@ -98,7 +114,7 @@ def get_fact_scores(args, scorer, tokenizer, scorers, docs, summ_hypo, summ_tgt,
 
         if (summ_tgt != None) and (summ_tgt != "") and (summ_tgt != "."):
             rouge_scores = scorers['rouge'].get_scores(summ_hypo, summ_tgt, avg=True)
-            rouge_score = rouge_scores['rouge-1']['f']
+            rouge_score = rouge_scores['rouge-2']['f']
             w1 = args.w1
             w2 = args.w2
             final_score = (w1 * factcc_score + w2 * rouge_score)/(w1 + w2)

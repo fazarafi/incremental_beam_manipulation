@@ -135,6 +135,9 @@ def test_summary_scores_official(args, pred_file_name, scorers):
         print('TEST WITH FEQA: ', final_scores)
         final_results.append(final_scores)
     
+    if 'dae' in scorers:
+        print('TEST WITH DAE')
+    
     if 'qeval' in scorers:
         print('TEST WITH QuestEval')
 
