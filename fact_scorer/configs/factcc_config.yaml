@@ -1,0 +1,38 @@
+checkpoint_name: "1231"
+model_dir: "fact_scorer/fact_factcc/factcc-checkpoint"
+data_dir: ""
+bert_dir: ""
+outout_dir: ""
+
+task_name: "factcc_annotated" 
+model_name_or_path: "bert-base-uncased"
+max_seq_length: 512
+per_gpu_train_batch_size: 12
+model_type: "bert"
+do_eval: true
+eval_all_checkpoints: false
+do_lower_case: true
+overwrite_cache: false
+
+tgen_seq2seq_config: "new_configs/model_configs/seq2seq_model.yaml"
+trainable_reranker_config:
+  "new_configs/model_configs/bm_model.yaml"
+scorer: 'surrogate'
+beam_sizes:
+    - 3
+    - 5
+    - 10
+    - 30
+only_rerank_final: false
+greedy_complete_at:
+  - - 5
+    - 10
+    - 15
+    - 20 
+coarse_ranker: true
+also_rerank_final: false
+save_prefix: ""
+local_rank: -1
+no_cuda: false
+per_gpu_eval_batch_size: 1
+n_gpu: 1

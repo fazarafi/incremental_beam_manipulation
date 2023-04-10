@@ -19,6 +19,7 @@ attention_keras/
 PreSumm/*
 
 # Will decide later, ignore for now
-fact_scorer/*       
+fact_scorer/fact_factcc/factcc-checkpoint
+
 cached_dev_squad1.0_384
 cached_dev_bert-base-uncased_512_factcc_annotated

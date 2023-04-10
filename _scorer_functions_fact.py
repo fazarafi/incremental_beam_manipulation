@@ -10,6 +10,7 @@ from fact_scorer.fact_factcc.factcc_caller_model import FactccCaller
 from fact_scorer.fact_summac.summac_caller import classify as summac_cls
 
 from fact_scorer.fact_coco.coco_caller import initialize_coco, evaluate_coco
+from fact_scorer.fact_dae.dae_caller import initialize_dae, evaluate_dae
 from rouge import Rouge
 
 from pytorch_transformers import BertTokenizer
@@ -456,8 +457,8 @@ def get_rouge_fact_score_function(pretrained_model, fact_scorer, rouge_scorer, t
         
         factcc_score = fact_scorer.classify(docs, summ_hypo)
 
-        # print("summ_hypo ", summ_hypo)
-        # print("summ_tgt ", summ_tgt)
+        print("summ_hypo ", summ_hypo)
+        print("summ_tgt ", summ_tgt)
         rouge_scores = rouge_scorer.get_scores(summ_hypo, summ_tgt, avg=True)
         rouge_score = rouge_scores['rouge-2']['f']
         
@@ -533,6 +534,7 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
         tokenizer = get_bart_tokenizer(args)
 
     # convert docs and hypo to text
+    # BELOW ARE LEGACY
     if scorer == "factcc":
         factcc = FactccCaller()
         return get_factcc_score_function(pretrained_model, factcc, tokenizer)
@@ -566,12 +568,51 @@ def get_score_function_fact(args, scorer, cfg, summ_data, true_summ, beam_size, 
         coco_params = initialize_coco()
         rouge_model = Rouge()
         return get_factcc_coco_bart_rouge_score_function(pretrained_model, coco_params, factcc, rouge_model, tokenizer, args.multi_w)
-    elif scorer == "weighted_fact":
-        print("TODO")
+    
+
+    # BELOW ARE CURRENT
     elif scorer == "baseline":
         rouge_model = Rouge()
-        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
         print("TODO")
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
+        
+    elif scorer == "base_factcc":
+        rouge_model = Rouge()
+        print("TODO")
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
+        
+    elif scorer == "base_dae":
+        rouge_model = Rouge()
+        dae_params = initialize_dae()
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
+        
+    elif scorer == "base_coco":
+        rouge_model = Rouge()
+        print("TODO")
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
+        
+    elif scorer == "base_factcc_dae":
+        rouge_model = Rouge()
+        print("TODO")
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
+        
+    elif scorer == "base_factcc_coco":
+        rouge_model = Rouge()
+        print("TODO")
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
+        
+    elif scorer == "base_coco_dae":
+        rouge_model = Rouge()
+        print("TODO")
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
+        
+    elif scorer == "base_factcc_coco_dae":
+        rouge_model = Rouge()
+        print("TODO")
+        return get_score_baseline_fact(pretrained_model, rouge_model, tokenizer)
+    
+    
+    
     elif scorer == "surrogate_fact":
         # TODO FT use bart tokenizer below
         learned = SummaryFactTrainableReranker(summary_embedder, document_embedder, cfg['trainable_reranker_config'], tokenizer=tokenizer, pretrained_model=args.pretrained_model)

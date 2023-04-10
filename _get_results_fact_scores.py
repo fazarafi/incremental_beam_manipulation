@@ -138,8 +138,11 @@ def test_summary_scores_official(args, pred_file_name, scorers):
     if 'dae' in scorers:
         print('TEST WITH DAE')
     
-    if 'qeval' in scorers:
-        print('TEST WITH QuestEval')
+    if 'quals' in scorers:
+        print('TEST WITH Quals')
+
+    if 'other scorer' in scorers:
+        print('TEST WITH Others')
 
     return final_results, data_length
 
